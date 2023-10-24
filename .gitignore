@@ -1,0 +1,5 @@
+build
+dist
+pygdebias.egg-info
+*.ipynb
+*/__pycache__
