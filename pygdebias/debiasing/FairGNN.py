@@ -1,22 +1,40 @@
 import torch.nn as nn
 import numpy as np
-
+import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, roc_auc_score, recall_score, f1_score
 import argparse
 import time
 import torch
 from tqdm import tqdm
 from torch_geometric.nn import GCNConv
+# class GCN(nn.Module):
+#     def __init__(self, nfeat, nhid, nclass, dropout):
+#         super(GCN, self).__init__()
+#         self.body = GCN_Body(nfeat,nhid,dropout)
+#         self.fc = nn.Linear(nhid,nclass)
+
+#     def forward(self, g, x):
+#         x = self.body(g,x)
+#         x = self.fc(x)
+#         return x
+
 
 
 class GCN(nn.Module):
-    def __init__(self, nfeat, nhid, dropout=0.5):
+    def __init__(self, nfeat, nhid, nclass, dropout=0.5):
         super(GCN, self).__init__()
         # self.gc1 = spectral_norm(GCNConv(nfeat, nhid).lin)
         self.gc1 = GCNConv(nfeat, nhid)
+        # self.gc2 = GCNConv(nhid, nhid)
+        # self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(nhid, nclass) #nhid, nhid
 
     def forward(self, edge_index, x):
+        # x = F.relu(self.gc1(x, edge_index))
+        # x = self.dropout(x)
         x = self.gc1(x, edge_index)
+        # x = self.gc2(x, edge_index)
+        x = self.fc(x)
         return x
 
 
@@ -29,14 +47,14 @@ def accuracy(output, labels):
 
 
 def get_model(nfeat, args):
-    model = GCN(nfeat, nhid=args.num_hidden, dropout=args.dropout)
+    model = GCN(nfeat, nhid=args.num_hidden, nclass=args.num_hidden, dropout=args.dropout)
 
     return model
 
 
 class FairGNN(nn.Module):
     def __init__(
-        self, nfeat, sim_coeff=0.6, n_order=10, subgraph_size=30, acc=0.69, epoch=2000
+        self, nfeat, sim_coeff=0.6, n_order=10, subgraph_size=30, acc=0.8, epoch=2000
     ):
         super(FairGNN, self).__init__()
 
@@ -51,7 +69,7 @@ class FairGNN(nn.Module):
         parser.add_argument(
             "--epochs",
             type=int,
-            default=epoch,  # 1000
+            default=2000,  # 1000
             help="Number of epochs to train.",
         )
         parser.add_argument(
@@ -66,7 +84,7 @@ class FairGNN(nn.Module):
         parser.add_argument(
             "--proj_hidden",
             type=int,
-            default=16,
+            default=128, #og 16
             help="Number of hidden units in the projection layer of encoder.",
         )
         parser.add_argument(
@@ -84,13 +102,13 @@ class FairGNN(nn.Module):
         parser.add_argument(
             "--dataset",
             type=str,
-            default="synthetic",
+            default="bail",
             choices=["synthetic", "bail", "credit"],
         )
         parser.add_argument(
             "--encoder",
             type=str,
-            default="sage",
+            default="gcn",
             choices=["gcn", "gin", "sage", "infomax", "jk"],
         )
         parser.add_argument("--batch_size", type=int, help="batch size", default=100)
@@ -116,7 +134,8 @@ class FairGNN(nn.Module):
 
         nhid = args.num_hidden
         dropout = args.dropout
-        self.estimator = GCN(nfeat, 1, dropout)
+        # self.estimator = GCN(nfeat, 1, dropout) #nhid instead of 1
+        self.estimator = GCN(nfeat, nhid, 1, dropout)
         self.GNN = get_model(nfeat, args)
         self.classifier = nn.Linear(nhid, 1)
         self.adv = nn.Linear(nhid, 1)
@@ -270,10 +289,14 @@ class FairGNN(nn.Module):
             parity_val, equality_val = self.fair_metric(sens, labels, output, idx_val)
 
             # if acc_val > args.acc: #and roc_val > args.roc:
-
-            if acc_val > args.acc or epoch == 0:
+            print("acc_val: ", acc_val)
+            print("parity val:", parity_val)
+            print("equality_val: ", equality_val)
+            print("best fair: ", best_fair)
+            if acc_val > args.acc:
                 if parity_val + equality_val < best_fair:
                     # if acc_val>best_acc:
+                    
                     best_epoch = epoch
                     best_fair = parity_val + equality_val
                     best_acc = acc_val
@@ -368,7 +391,7 @@ class FairGNN(nn.Module):
             self.labels[idx_test].detach().cpu().numpy(),
             self.sens[idx_test].detach().cpu().numpy(),
         )
-
+        
         return (
             ACC,
             AUCROC,

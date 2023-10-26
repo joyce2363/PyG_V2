@@ -504,7 +504,7 @@ class EDITS(nn.Module):
         """
         adj=sp.coo_matrix(adj.to_dense().numpy())
 
-        features1 = features
+        # features1 = features
         print("****************************Before debiasing****************************")
         # if args.dataset != 'german':
         #     preserve = features
@@ -513,6 +513,7 @@ class EDITS(nn.Module):
         #         features1[:, 1] = preserve[:, 1]  # credit
         #     elif args.dataset == 'bail':
         #         features1[:, 0] = preserve[:, 0]  # bail
+        # print("NORMALIZE")
         if normalize:
             features1 = feature_norm(features)
         if k >= 0:
@@ -548,7 +549,8 @@ class EDITS(nn.Module):
 
         A_debiased, X_debiased = adj, features
         val_adv = []
-        for epoch in tqdm(range(epochs)):
+
+        for epoch in tqdm(range(100)):
             if epoch > 400:
                 lr = 0.001
             self.train()
@@ -698,15 +700,24 @@ class EDITS(nn.Module):
 
             #ACC_sens0, AUCROC_sens0, F1_sens0, ACC_sens1, AUCROC_sens1, F1_sens1=self.predict_sens_group(output, idx_test)
             sens=self.sens
-
+            sens = sens.cuda()
             SP, EO=self.fair_metric_direct(output_preds, labels[idx_test].detach().cpu().numpy(), sens[idx_test].detach().cpu().numpy())
 
             pred=output_preds
             result=[]
             for sens in [0,1]:
-                F1 = f1_score(self.labels[idx_test][self.sens[idx_test]==sens], pred[self.sens[idx_test]==sens], average='micro')
-                ACC=accuracy_score(self.labels[idx_test][self.sens[idx_test]==sens], pred[self.sens[idx_test]==sens],)
-                AUCROC=roc_auc_score(self.labels[idx_test][self.sens[idx_test]==sens], pred[self.sens[idx_test]==sens])
+                # idx_test = self.idx_test.cpu().numpy()
+                F1 = f1_score(self.labels[idx_test][self.sens[idx_test]==sens].detach().cpu().numpy(), 
+                              pred[self.sens[idx_test]==sens], 
+                              average='micro')
+                ACC=accuracy_score(
+                    self.labels[idx_test][self.sens[idx_test]==sens], 
+                    pred[self.sens[idx_test]==sens],
+                    )
+                AUCROC=roc_auc_score(
+                    self.labels[idx_test][self.sens[idx_test]==sens], 
+                    pred[self.sens[idx_test]==sens]
+                    )
                 result.extend([ ACC, AUCROC,F1])
 
             ACC_sens0, AUCROC_sens0, F1_sens0, ACC_sens1, AUCROC_sens1, F1_sens1=result
