@@ -5,7 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, GATConv, GINConv, SAGEConv, DeepGraphInfomax, JumpingKnowledge
 
-from sklearn.metrics import accuracy_score,roc_auc_score,recall_score,f1_score
+from sklearn.metrics import accuracy_score,roc_auc_score, recall_score,f1_score, precision_score, confusion_matrix
+from sklearn.metrics import confusion_matrix
 from torch.nn.utils import spectral_norm
 from torch_geometric.utils import dropout_adj, convert
 
@@ -33,41 +34,25 @@ class GCN(nn.Module):
     def __init__(self, nfeat, nhid, dropout=0.5):
         super(GCN, self).__init__()
         self.gc1 = GCNConv(nfeat, nhid)
+        self.fc = nn.Linear(nhid, nhid) #nhid, nhid
 
     def forward(self, x, edge_index):
         x = self.gc1(x, edge_index)
+        x = self.fc(x)
+
         return x
 
-
-class GIN(nn.Module):
-    def __init__(self, nfeat, nhid, dropout=0.5):
-        super(GIN, self).__init__()
-
-        self.mlp1 = nn.Sequential(
-            spectral_norm(nn.Linear(nfeat, nhid)),
-            nn.ReLU(),
-            nn.BatchNorm1d(nhid),
-            spectral_norm(nn.Linear(nhid, nhid)),
-        )
-        self.conv1 = GINConv(self.mlp1)
-
+class MLP(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(MLP, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        # self.fc2 = nn.Linear(hidden_size, hidden_size)
+        # check if Bind use drop out or relu 
+        # check if PyGDebias if classifier out of encoder
     def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index)
+        x = torch.relu(self.fc1(x)) # Pass the input through the first linear layer with activation function
+        # x = self.fc2(x) # Pass the output of the first layer through the second linear layer
         return x
-
-
-class JK(nn.Module):
-    def __init__(self, nfeat, nhid, dropout=0.5):
-        super(JK, self).__init__()
-        self.conv1 = spectral_norm(GCNConv(nfeat, nhid))
-        self.convx= spectral_norm(GCNConv(nhid, nhid))
-        self.jk = JumpingKnowledge(mode='max')
-        self.transition = nn.Sequential(
-            nn.ReLU(),
-        )
-
-        for m in self.modules():
-            self.weights_init(m)
 
     def weights_init(self, m):
         if isinstance(m, nn.Linear):
@@ -86,26 +71,6 @@ class JK(nn.Module):
             xs.append(x)
         x = self.jk(xs)
         return x
-
-
-class SAGE(nn.Module):
-    def __init__(self, nfeat, nhid, dropout=0.5):
-        super(SAGE, self).__init__()
-
-        # Implemented spectral_norm in the sage main file
-        # ~/anaconda3/envs/PYTORCH/lib/python3.7/site-packages/torch_geometric/nn/conv/sage_conv.py
-        self.conv1 = SAGEConv(nfeat, nhid, normalize=True)
-        self.conv1.aggr = 'mean'
-        self.transition = nn.Sequential(
-            nn.ReLU(),
-            nn.BatchNorm1d(nhid),
-            nn.Dropout(p=dropout)
-        )
-        self.conv2 = SAGEConv(nhid, nhid, normalize=True)
-        self.conv2.aggr = 'mean'
-
-        for m in self.modules():
-            self.weights_init(m)
 
     def weights_init(self, m):
         if isinstance(m, nn.Linear):
@@ -158,16 +123,8 @@ class Encoder(torch.nn.Module):
         self.base_model = base_model
         if self.base_model == 'gcn':
             self.conv = GCN(in_channels, out_channels)
-        elif self.base_model == 'gin':
-            self.conv = GIN(in_channels, out_channels)
-        elif self.base_model == 'sage':
-            self.conv = SAGE(in_channels, out_channels)
-        elif self.base_model == 'infomax':
-            enc_dgi = Encoder_DGI(nfeat=in_channels, nhid=out_channels)
-            self.conv = GraphInfoMax(enc_dgi=enc_dgi)
-        elif self.base_model == 'jk':
-            self.conv = JK(in_channels, out_channels)
-
+        elif self.base_model == 'mlp':
+            self.conv = MLP(in_channels, out_channels) # (in_channels, out_channels)
         for m in self.modules():
             self.weights_init(m)
 
@@ -182,17 +139,29 @@ class Encoder(torch.nn.Module):
         return x
 
 
-
-
-
-
-
-
-
-
-
 class GNN(torch.nn.Module):
-    def __init__(self, adj, features, labels, idx_train, idx_val, idx_test, sens, sens_idx, num_hidden=16, num_proj_hidden=16, lr=0.001, weight_decay=1e-5, drop_edge_rate_1=0.1, drop_edge_rate_2=0.1, drop_feature_rate_1=0.1, drop_feature_rate_2=0.1, encoder="gcn", sim_coeff=0.5, nclass=1, device="cuda"):
+    def __init__(
+            self, 
+            adj, 
+            features, 
+            labels, 
+            idx_train, 
+            idx_val, 
+            idx_test, 
+            sens, 
+            sens_idx, 
+            num_hidden=128, #16 bail, 128 pokec_n, 128 or 64 for pokec_z
+            num_proj_hidden=128, 
+            lr=0.001, 
+            weight_decay=1e-5, 
+            drop_edge_rate_1=0.5, 
+            drop_edge_rate_2=0.5, 
+            drop_feature_rate_1=0.5, 
+            drop_feature_rate_2=0.5, 
+            encoder="gcn", 
+            sim_coeff=0.5, 
+            nclass=1, 
+            device="cuda"):
         super(GNN, self).__init__()
 
         self.device = device
@@ -201,11 +170,12 @@ class GNN(torch.nn.Module):
         self.edge_index = adj.coalesce().indices()
 
 
-
+        # self.encoder = Encoder(input_size=features.shape[1], hidden_size=16, output_size = num_hidden).to(device)
         self.encoder = Encoder(in_channels=features.shape[1], out_channels=num_hidden, base_model=encoder).to(device)
         # model = SSF(encoder=encoder, num_hidden=args.hidden, num_proj_hidden=args.proj_hidden, sim_coeff=args.sim_coeff,
                     # nclass=num_class).to(device)
-
+        # num_mlp_layers = 2
+        # self.mlp = MLP(features, num_hidden, output_dim = 64, num_layers = 64, activation = nn.ReLU())
         self.sim_coeff = sim_coeff
         #self.encoder = encoder
         self.labels = labels
@@ -216,8 +186,8 @@ class GNN(torch.nn.Module):
         self.idx_test = idx_test
         self.sens = sens
         self.sens_idx = sens_idx
-        self.drop_edge_rate_1=self.drop_edge_rate_2=0
-        self.drop_feature_rate_1=self.drop_feature_rate_2=0
+        self.drop_edge_rate_1=self.drop_edge_rate_2=0.5
+        self.drop_feature_rate_1=self.drop_feature_rate_2=0.5
 
         # Projection
         self.fc1 = nn.Sequential(
@@ -239,7 +209,7 @@ class GNN(torch.nn.Module):
         self.fc4 = spectral_norm(nn.Linear(num_hidden, num_hidden))
 
         # Classifier
-        self.c1 = Classifier(ft_in=num_hidden, nb_classes=nclass)
+        self.c1 = Classifier(ft_in=num_hidden, nb_classes=1)
 
         for m in self.modules():
             self.weights_init(m)
@@ -324,15 +294,14 @@ class GNN(torch.nn.Module):
 
 
 
-    def fit(self, epochs=300):
+    def fit(self, epochs=500):
         best_loss = 100
         for epoch in range(epochs + 1):
-
             sim_loss = 0
-
-            self.train()
-            self.optimizer_2.zero_grad()
-            edge_index_1 =self.edge_index
+            self.train() # what is self.train() 
+            # print("self.train() ", self.train())
+            self.optimizer_2.zero_grad() #what is optimizer ?? 
+            edge_index_1 =self.edge_index # what are all of this for?!?
             x_1 = self.features
 
 
@@ -354,7 +323,10 @@ class GNN(torch.nn.Module):
             c_val = self.classifier(z_val)
             val_loss = F.binary_cross_entropy_with_logits(c_val[self.idx_val],
                                                     self.labels[self.idx_val].unsqueeze(1).float().to(self.device))
-
+            # print("understand WHY the validation loss is SO bad.")
+            # print("c_val[self.idx_val]", c_val[self.idx_val])
+            # print("self.labels[self.idx_val].unsqueeze(1).float().to(self.device)", 
+            #     self.labels[self.idx_val].unsqueeze(1).float().to(self.device)) #I believe that these should all be the labels
             if epoch % 100 == 0:
                 print(f"[Train] Epoch {epoch}: train_c_loss: {cl_loss:.4f} | val_c_loss: {val_loss:.4f}")
 
@@ -376,22 +348,41 @@ class GNN(torch.nn.Module):
         output = self.forwarding_predict(emb)
 
         output_preds = (output.squeeze() > 0).type_as(self.labels)[self.idx_test].detach().cpu().numpy()
-
+        print("output_preds:", output_preds)
+        print("len(output_preds): ", len(output_preds))
         labels = self.labels.detach().cpu().numpy()
         idx_test = self.idx_test
 
         F1 = f1_score(labels[idx_test], output_preds, average='micro')
-        ACC = accuracy_score(labels[idx_test], output_preds, )
-        AUCROC = roc_auc_score(labels[idx_test], output_preds)
+        recall = recall_score(labels[idx_test], output_preds, average='micro')
+        precision = precision_score(labels[idx_test], output_preds, average='micro')
+        cm = confusion_matrix(labels[idx_test], output_preds)
 
-        ACC_sens0, AUCROC_sens0, F1_sens0, ACC_sens1, AUCROC_sens1, F1_sens1 = self.predict_sens_group(output_preds,
-                                                                                                       idx_test)
+        ACC = accuracy_score(labels[idx_test], output_preds, )
+        # AUCROC = roc_auc_score(labels[idx_test], output_preds)
+
+        ACC_sens0, F1_sens0, ACC_sens1, F1_sens1 = self.predict_sens_group(output_preds, idx_test)
 
         SP, EO = self.fair_metric(output_preds, self.labels[idx_test].detach().cpu().numpy(),
                                   self.sens[idx_test].detach().cpu().numpy())
 
 
-        return ACC, AUCROC, F1, ACC_sens0, AUCROC_sens0, F1_sens0, ACC_sens1, AUCROC_sens1, F1_sens1, SP, EO
+        return (
+                ACC, 
+                # AUCROC, 
+                F1, 
+                recall, 
+                precision,
+                cm,
+                ACC_sens0, 
+                # AUCROC_sens0, 
+                F1_sens0, 
+                ACC_sens1, 
+                # AUCROC_sens1, 
+                F1_sens1, 
+                SP, 
+                EO
+        )
 
 
 
@@ -417,12 +408,17 @@ class GNN(torch.nn.Module):
         #pred = self.lgreg.predict(self.embs[idx_test])
         pred=output
         result=[]
+        
         for sens in [0,1]:
             F1 = f1_score(self.labels[idx_test][self.sens[idx_test]==sens].detach().cpu().numpy(), pred[self.sens[idx_test]==sens], average='micro')
             ACC=accuracy_score(self.labels[idx_test][self.sens[idx_test]==sens].detach().cpu().numpy(), pred[self.sens[idx_test]==sens],)
-            AUCROC=roc_auc_score(self.labels[idx_test][self.sens[idx_test]==sens].detach().cpu().numpy(), pred[self.sens[idx_test]==sens])
-            result.extend([ACC, AUCROC, F1])
-
+            # AUCROC=roc_auc_score(self.labels[idx_test][self.sens[idx_test]==sens].detach().cpu().numpy(), 
+            #                      pred[self.sens[idx_test]==sens], 
+            #                      multi_class="ovr")
+            result.extend([ACC, 
+                        #    AUCROC, 
+                           F1])
+        print("result in predict_sens_group: ", result)
         return result
 
 

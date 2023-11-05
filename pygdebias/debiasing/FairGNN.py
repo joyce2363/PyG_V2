@@ -54,7 +54,7 @@ def get_model(nfeat, args):
 
 class FairGNN(nn.Module):
     def __init__(
-        self, nfeat, sim_coeff=0.6, n_order=10, subgraph_size=30, acc=0.8, epoch=2000
+        self, nfeat, sim_coeff=0.6, n_order=10, subgraph_size=30, acc=0.6, epoch=1
     ):
         super(FairGNN, self).__init__()
 
@@ -69,7 +69,7 @@ class FairGNN(nn.Module):
         parser.add_argument(
             "--epochs",
             type=int,
-            default=2000,  # 1000
+            default= 2000,  # 1000
             help="Number of epochs to train.",
         )
         parser.add_argument(
@@ -78,7 +78,7 @@ class FairGNN(nn.Module):
         parser.add_argument(
             "--weight_decay",
             type=float,
-            default=1e-5,
+            default=0.00001,
             help="Weight decay (L2 loss on parameters).",
         )
         parser.add_argument(
@@ -127,9 +127,9 @@ class FairGNN(nn.Module):
         )  # train, cf, test
 
         args = parser.parse_known_args()[0]
-        args.num_hidden = 64
-        args.alpha = 4
-        args.beta = 0.01
+        args.num_hidden = 128
+        args.alpha = 50
+        args.beta = 1
         args.acc = args.roc = acc
 
         nhid = args.num_hidden
@@ -159,6 +159,10 @@ class FairGNN(nn.Module):
         self.A_loss = 0
 
     def fair_metric(self, sens, labels, output, idx):
+        print("sens: ", sens)
+        print("labels: ", labels)
+        print("output: ", output)
+        print("idx: ", idx)
         val_y = labels[idx].cpu().numpy()
         idx_s0 = sens.cpu().numpy()[idx.cpu().numpy()] == 0
         idx_s1 = sens.cpu().numpy()[idx.cpu().numpy()] == 1
@@ -167,14 +171,26 @@ class FairGNN(nn.Module):
         idx_s1_y1 = np.bitwise_and(idx_s1, val_y == 1)
 
         pred_y = (output[idx].squeeze() > 0).type_as(labels).cpu().numpy()
+        print("output[idx] : ", output[idx])
+        print("pred_y :", pred_y)
+        print("len(pred_y[idx_s0]) :", len(pred_y[idx_s0]))
+        print("sum(pred_y[idx_s0]) :", sum(pred_y[idx_s0]))
+        print("sum(idx_s0): ", sum(idx_s0))
+        print("sum(pred_y[idx_s1]):", sum(pred_y[idx_s1]))
+        print("sum(idx_s1): ", sum(idx_s1))
+        labels = "I_am_working_in_field"
         parity = abs(
             sum(pred_y[idx_s0]) / sum(idx_s0) - sum(pred_y[idx_s1]) / sum(idx_s1)
         )
+
         equality = abs(
             sum(pred_y[idx_s0_y1]) / sum(idx_s0_y1)
             - sum(pred_y[idx_s1_y1]) / sum(idx_s1_y1)
         )
-
+        print("sens: ", sens)
+        print("labels: ", labels)
+        print("output: ", output)
+        print("idx: ", idx)
         return parity, equality
 
     def fair_metric_direct(self, pred, labels, sens):
@@ -187,6 +203,8 @@ class FairGNN(nn.Module):
             sum(pred[idx_s0_y1]) / sum(idx_s0_y1)
             - sum(pred[idx_s1_y1]) / sum(idx_s1_y1)
         )
+        print("PARITY.item() : ", parity.item())
+        print("EQUALITY.item() : ", equality.item())
         return parity.item(), equality.item()
 
     def forward(self, g, x):
@@ -293,7 +311,7 @@ class FairGNN(nn.Module):
             print("parity val:", parity_val)
             print("equality_val: ", equality_val)
             print("best fair: ", best_fair)
-            if acc_val > args.acc:
+            if acc_val > args.acc: # > args.acc
                 if parity_val + equality_val < best_fair:
                     # if acc_val>best_acc:
                     
@@ -445,3 +463,5 @@ class FairGNN(nn.Module):
             result.extend([ACC, AUCROC, F1])
 
         return result
+
+

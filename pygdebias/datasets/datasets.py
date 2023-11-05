@@ -665,30 +665,17 @@ class Pokec_n(Dataset):
         return_tensor_sparse=True,
     ):
         super().__init__()
-        if dataset_name != "nba":
-            if dataset_name == "pokec_z":
-                dataset = "region_job"
-            elif dataset_name == "pokec_n":
-                dataset = "region_job_2"
-            else:
-                dataset = None
-            sens_attr = "region"
-            predict_attr = "I_am_working_in_field"
-            label_number = 500
-            sens_number = 200
-            seed = 20
-            path = "./dataset/pokec/"
-            test_idx = False
-        else:
-            dataset = "nba"
-            sens_attr = "country"
-            predict_attr = "SALARY"
-            label_number = 100
-            sens_number = 50
-            seed = 20
-            path = "./dataset/NBA"
-            test_idx = True
-
+        if dataset_name == "pokec_z":
+            dataset = "region_job"
+        elif dataset_name == "pokec_n":
+            dataset = "region_job_2"
+        sens_attr = "region"
+        predict_attr = "I_am_working_in_field"
+        label_number = 1000
+        sens_number = 200
+        seed = 20
+        path = "../dataset/pokec/"
+        test_idx = False
         (
             adj,
             features,
@@ -701,7 +688,7 @@ class Pokec_n(Dataset):
         ) = self.load_pokec(
             dataset,
             sens_attr,
-            predict_attr if predict_attr_specify == None else predict_attr_specify,
+            predict_attr,
             path=path,
             label_number=label_number,
             sens_number=sens_number,
@@ -728,8 +715,8 @@ class Pokec_n(Dataset):
         predict_attr,
         path="../dataset/pokec/",
         label_number=1000,
-        sens_number=500,
-        seed=19,
+        sens_number=200,
+        seed=20,
         test_idx=False,
     ):
         """Load data"""
@@ -794,21 +781,35 @@ class Pokec_n(Dataset):
         import random
 
         random.seed(seed)
-        label_idx = np.where(labels >= 0)[0]
-        random.shuffle(label_idx)
+        label_idx_0 = np.where(labels == 0)[0]
+        print("label_idx_0: ", len(label_idx_0))
+        label_idx_1 = np.where(labels == 1)[0]
+        print("label_idx_1: ", len(label_idx_1))
 
-        idx_train = label_idx[: min(int(0.5 * len(label_idx)), label_number)]
-        idx_val = label_idx[int(0.5 * len(label_idx)) : int(0.75 * len(label_idx))]
-        if test_idx:
-            idx_test = label_idx[label_number:]
-            idx_val = idx_test
-        else:
-            idx_test = label_idx[int(0.75 * len(label_idx)) :]
+        random.shuffle(label_idx_0)
+        random.shuffle(label_idx_1)
+
+        idx_train = np.append(label_idx_0[:min(int(0.5 * len(label_idx_0)), label_number // 2)],
+                          label_idx_1[:min(int(0.5 * len(label_idx_1)), label_number // 2)])
+        idx_val = np.append(label_idx_0[int(0.5 * len(label_idx_0)):int(0.75 * len(label_idx_0))],
+                        label_idx_1[int(0.5 * len(label_idx_1)):int(0.75 * len(label_idx_1))])
+        idx_test = np.append(label_idx_0[int(0.75 * len(label_idx_0)):], label_idx_1[int(0.75 * len(label_idx_1)):])
+
+        # label_idx = np.where(labels >= 0)[0]
+        # random.shuffle(label_idx)
+
+        # idx_train = label_idx[: min(int(0.5 * len(label_idx)), label_number)]
+        # idx_val = label_idx[int(0.5 * len(label_idx)) : int(0.75 * len(label_idx))]
+        # if test_idx:
+        #     idx_test = label_idx[label_number:]
+        #     idx_val = idx_test
+        # else:
+        #     idx_test = label_idx[int(0.75 * len(label_idx)) :]
 
         sens = idx_features_labels[sens_attr].values
 
         sens_idx = set(np.where(sens >= 0)[0])
-        idx_test = np.asarray(list(sens_idx & set(idx_test)))
+        # idx_test = np.asarray(list(sens_idx & set(idx_test)))
         sens = torch.FloatTensor(sens)
         idx_sens_train = list(sens_idx - set(idx_val) - set(idx_test))
         random.seed(seed)
@@ -824,7 +825,6 @@ class Pokec_n(Dataset):
         # random.shuffle(sens_idx)
 
         return adj, features, labels, idx_train, idx_val, idx_test, sens, idx_sens_train
-
 
 class Twitter(Dataset):
     def __init__(self):
