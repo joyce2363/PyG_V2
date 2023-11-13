@@ -1,4 +1,4 @@
-from .datasets import Bail, Pokec_n, Pokec_z, Nba
+from .datasets import Bail, Pokec_n, Pokec_z, Nba, Income
 __all__ = [
     # 'Dataset', 
     # 'Google', 
@@ -11,6 +11,7 @@ __all__ = [
     # 'Citeseer', 
     # 'German',
     'Bail', 
+    'Income',
     # 'Credit',
     # 'LCC',
     # 'LCC_small',

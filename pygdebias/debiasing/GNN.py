@@ -31,7 +31,7 @@ class Classifier(nn.Module):
 
 
 class GCN(nn.Module):
-    def __init__(self, nfeat, nhid, dropout=0.5):
+    def __init__(self, nfeat, nhid):
         super(GCN, self).__init__()
         self.gc1 = GCNConv(nfeat, nhid)
         self.fc = nn.Linear(nhid, nhid) #nhid, nhid
@@ -60,29 +60,29 @@ class MLP(nn.Module):
             if m.bias is not None:
                 m.bias.data.fill_(0.0)
 
-    def forward(self, x, edge_index):
-        xs = []
-        x = self.conv1(x, edge_index)
-        x = self.transition(x)
-        xs.append(x)
-        for _ in range(1):
-            x = self.convx(x, edge_index)
-            x = self.transition(x)
-            xs.append(x)
-        x = self.jk(xs)
-        return x
+    # def forward(self, x, edge_index):
+    #     xs = []
+    #     # x = self.conv1(x, edge_index)
+    #     x = self.transition(x)
+    #     xs.append(x)
+    #     for _ in range(1):
+    #         x = self.convx(x, edge_index)
+    #         x = self.transition(x)
+    #         xs.append(x)
+    #     x = self.jk(xs)
+    #     return x
 
-    def weights_init(self, m):
-        if isinstance(m, nn.Linear):
-            torch.nn.init.xavier_uniform_(m.weight.data)
-            if m.bias is not None:
-                m.bias.data.fill_(0.0)
+    # def weights_init(self, m):
+    #     if isinstance(m, nn.Linear):
+    #         torch.nn.init.xavier_uniform_(m.weight.data)
+    #         if m.bias is not None:
+    #             m.bias.data.fill_(0.0)
 
-    def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index)
-        x = self.transition(x)
-        x = self.conv2(x, edge_index)
-        return x
+    # def forward(self, x, edge_index):
+    #     x = self.conv1(x, edge_index)
+    #     x = self.transition(x)
+    #     x = self.conv2(x, edge_index)
+    #     return x
 
 
 class Encoder_DGI(nn.Module):
@@ -125,6 +125,7 @@ class Encoder(torch.nn.Module):
             self.conv = GCN(in_channels, out_channels)
         elif self.base_model == 'mlp':
             self.conv = MLP(in_channels, out_channels) # (in_channels, out_channels)
+
         for m in self.modules():
             self.weights_init(m)
 
@@ -150,26 +151,25 @@ class GNN(torch.nn.Module):
             idx_test, 
             sens, 
             sens_idx, 
-            num_hidden=128, #16 bail, 128 pokec_n, 128 or 64 for pokec_z
-            num_proj_hidden=128, 
+            num_hidden=16, #16 bail, 128 pokec_n, 128 or 64 for pokec_z, 128 for nba
+            num_proj_hidden=16, 
             lr=0.001, 
-            weight_decay=1e-5, 
+            weight_decay=1e-4, 
             drop_edge_rate_1=0.5, 
             drop_edge_rate_2=0.5, 
             drop_feature_rate_1=0.5, 
             drop_feature_rate_2=0.5, 
             encoder="gcn", 
-            sim_coeff=0.5, 
+            sim_coeff=0.5, #0.4 for bail, 0.5 for pokec_n/z
             nclass=1, 
             device="cuda"):
         super(GNN, self).__init__()
 
         self.device = device
 
-        #self.edge_index = convert.from_scipy_sparse_matrix(sp.coo_matrix(adj.to_dense().numpy()))[0]
-        self.edge_index = adj.coalesce().indices()
-
-
+        self.edge_index = convert.from_scipy_sparse_matrix(sp.coo_matrix(adj.to_dense().numpy()))[0]
+        # self.edge_index = adj.coalesce().indices()
+        
         # self.encoder = Encoder(input_size=features.shape[1], hidden_size=16, output_size = num_hidden).to(device)
         self.encoder = Encoder(in_channels=features.shape[1], out_channels=num_hidden, base_model=encoder).to(device)
         # model = SSF(encoder=encoder, num_hidden=args.hidden, num_proj_hidden=args.proj_hidden, sim_coeff=args.sim_coeff,
@@ -294,7 +294,7 @@ class GNN(torch.nn.Module):
 
 
 
-    def fit(self, epochs=500):
+    def fit(self, epochs=1000):
         best_loss = 100
         for epoch in range(epochs + 1):
             sim_loss = 0
