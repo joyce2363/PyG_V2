@@ -159,7 +159,7 @@ class Nba(Dataset):
         predict_attr = "SALARY"
         label_number = 100
         sens_number = 50
-        seed = 5
+        seed = 2
         path = "./dataset/NBA"
         test_idx = True
 
@@ -204,7 +204,7 @@ class Nba(Dataset):
         path="../dataset/pokec/",
         label_number= 100,
         sens_number=50,
-        seed= 5,
+        seed= 1,
         test_idx=False,
     ):
         """Load data"""
@@ -960,7 +960,7 @@ class Income(Dataset):
 
         import random
 
-        random.seed(5)
+        random.seed(1)
         label_idx_0 = np.where(labels == 0)[0]
         label_idx_1 = np.where(labels == 1)[0]
         random.shuffle(label_idx_0)
@@ -985,3 +985,115 @@ class Income(Dataset):
         idx_test = torch.LongTensor(idx_test)
 
         return adj, features, labels, edges, sens, idx_train, idx_val, idx_test, 0
+
+
+# class BIND(Dataset):
+#     def __init__(self):
+#         super(BIND, self).__init__()
+#         (
+#             adj,
+#             features,
+#             labels,
+#             edges,
+#             sens,
+#             idx_train,
+#             idx_val,
+#             idx_test,
+#             sens_idx,
+#         ) = self.load_income("income")
+
+#         node_num = features.shape[0]
+
+#         idx_train = torch.LongTensor(idx_train)
+#         idx_val = torch.LongTensor(idx_val)
+#         idx_test = torch.LongTensor(idx_test)
+#         labels = torch.LongTensor(labels)
+#         features = self.feature_norm(features)
+#         adj = mx_to_torch_sparse_tensor(adj, is_sparse=True)
+#         self.adj_ = adj
+#         self.features_ = features
+#         self.labels_ = labels
+#         self.idx_train_ = idx_train
+#         self.idx_val_ = idx_val
+#         self.idx_test_ = idx_test
+#         self.sens_ = sens
+#         self.sens_idx_ = sens_idx
+
+#     def feature_norm(self, features):
+#         min_values = features.min(axis=0)[0]
+#         max_values = features.max(axis=0)[0]
+#         return 2 * (features - min_values).div(max_values - min_values) - 1
+
+#     def load_income(
+#         self,
+#         dataset,
+#         sens_attr="race",
+#         predict_attr="income",
+#         path="empty",
+#         label_number=1000,
+#     ):
+#         print('Loading {} dataset from {}'.format(dataset, path))
+#         self.path_name = "income"
+#         idx_features_labels = pd.read_csv(
+#             os.path.join(self.root, self.path_name, "{}.csv".format(dataset))
+#         )
+#         header = list(idx_features_labels.columns)
+#         header.remove(predict_attr)
+
+#         # build relationship
+
+#         edges_unordered = np.genfromtxt(
+#             os.path.join(self.root, self.path_name, f"{dataset}_edges.txt")
+#         ).astype("int")
+
+#         features = sp.csr_matrix(idx_features_labels[header], dtype=np.float32)
+#         labels = idx_features_labels[predict_attr].values
+
+#         idx = np.arange(features.shape[0])
+#         idx_map = {j: i for i, j in enumerate(idx)}
+#         edges = np.array(
+#             list(map(idx_map.get, edges_unordered.flatten())), dtype=int
+#         ).reshape(edges_unordered.shape)
+
+#         adj = sp.coo_matrix(
+#             (np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
+#             shape=(labels.shape[0], labels.shape[0]),
+#             dtype=np.float32,
+#         )
+
+#         # build symmetric adjacency matrix
+#         adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
+
+#         # features = normalize(features)
+#         adj = adj + sp.eye(adj.shape[0])
+
+#         features = torch.FloatTensor(np.array(features.todense()))
+#         labels = torch.LongTensor(labels)
+
+#         import random
+
+#         random.seed(5)
+#         label_idx_0 = np.where(labels == 0)[0]
+#         label_idx_1 = np.where(labels == 1)[0]
+#         random.shuffle(label_idx_0)
+#         random.shuffle(label_idx_1)
+#         idx_train = np.append(
+#             label_idx_0[: min(int(0.5 * len(label_idx_0)), label_number // 2)],
+#             label_idx_1[: min(int(0.5 * len(label_idx_1)), label_number // 2)],
+#         )
+#         idx_val = np.append(
+#             label_idx_0[int(0.5 * len(label_idx_0)) : int(0.75 * len(label_idx_0))],
+#             label_idx_1[int(0.5 * len(label_idx_1)) : int(0.75 * len(label_idx_1))],
+#         )
+#         idx_test = np.append(
+#             label_idx_0[int(0.75 * len(label_idx_0)) :],
+#             label_idx_1[int(0.75 * len(label_idx_1)) :],
+#         )
+
+#         sens = idx_features_labels[sens_attr].values.astype(int)
+#         sens = torch.FloatTensor(sens)
+#         idx_train = torch.LongTensor(idx_train)
+#         idx_val = torch.LongTensor(idx_val)
+#         idx_test = torch.LongTensor(idx_test)
+
+#         return adj, features, labels, edges, sens, idx_train, idx_val, idx_test, 0

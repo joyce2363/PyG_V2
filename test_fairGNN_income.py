@@ -1,17 +1,17 @@
 from pygdebias.debiasing import FairGNN
-from pygdebias.datasets import Income
+from pygdebias.datasets import Bail
 
 # Available choices: 'Credit', 'German', 'Facebook', 'Pokec_z', 'Pokec_n', 'Nba', 'Twitter', 'Google', 'LCC', 'LCC_small', 'Cora', 'Citeseer', 'Amazon', 'Yelp', 'Epinion', 'Ciao', 'Dblp', 'Filmtrust', 'Lastfm', 'Ml-100k', 'Ml-1m', 'Ml-20m', 'Oklahoma', 'UNC', 'Bail'.
 
-income = Income()
+bail = Bail()
 adj, features, idx_train, idx_val, idx_test, labels, sens = (
-    income.adj(),
-    income.features(),
-    income.idx_train(),
-    income.idx_val(),
-    income.idx_test(),
-    income.labels(),
-    income.sens(),
+    bail.adj(),
+    bail.features(),
+    bail.idx_train(),
+    bail.idx_val(),
+    bail.idx_test(),
+    bail.labels(),
+    bail.sens(),
 )
 
 # Initiate the model (with default parameters).

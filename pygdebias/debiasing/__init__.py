@@ -1,10 +1,11 @@
-from .CrossWalk import CrossWalk as CrossWalk
+# from .CrossWalk import CrossWalk as CrossWalk
 
 from .EDITS import EDITS as EDITS
 
 # from .FairEdit import FairEdit as FairEdit
 
-from .FairGNN import FairGNN as FairGNN
+from .FairGNN_edited_optune import FairGNN_edited_optune as FairGNN_edited_optune
+# from .FairGNN import FairGNN as FairGNN
 from .FairGNN_correct1 import FairGNN_correct1 as FairGNN_correct1
 
 # from .FairVGNN import FairVGNN as FairVGNN
@@ -28,4 +29,4 @@ from .GNN import MLP as MLP
 
 # from .UGE import UGE as UGE
 
-__all__ = ['FairEdit', 'FairGNN_correct1', 'FairGNN', 'FairVGNN', 'FairWalk', 'GEAR', 'GNN', 'GUIDE', 'InFoRM_GNN', 'NIFTY', 'RawlsGCN', 'REDRESS', 'UGE', 'CrossWalk', 'EDITS']
+__all__ = ['FairEdit', 'FairGNN_correct1', 'FairGNN_edited_optune', 'FairVGNN', 'FairWalk', 'GEAR', 'GNN', 'GUIDE', 'InFoRM_GNN', 'NIFTY', 'RawlsGCN', 'REDRESS', 'UGE', 'CrossWalk', 'EDITS']

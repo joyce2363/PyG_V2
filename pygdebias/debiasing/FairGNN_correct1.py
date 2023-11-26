@@ -54,7 +54,7 @@ def get_model(nfeat, args):
 
 class FairGNN_correct1(nn.Module):
     def __init__(
-        self, nfeat, sim_coeff=0.6, n_order=10, subgraph_size=30, acc=0.8, epoch=2000
+        self, nfeat, sim_coeff=0.61, n_order=27, subgraph_size=117, acc=0.43, epoch=2000
     ):
         super(FairGNN_correct1, self).__init__()
 
@@ -73,7 +73,7 @@ class FairGNN_correct1(nn.Module):
             help="Number of epochs to train.",
         )
         parser.add_argument(
-            "--lr", type=float, default=0.001, help="Initial learning rate."
+            "--lr", type=float, default=0.004, help="Initial learning rate."
         )
         parser.add_argument(
             "--weight_decay",
@@ -84,7 +84,7 @@ class FairGNN_correct1(nn.Module):
         parser.add_argument(
             "--proj_hidden",
             type=int,
-            default=128, #og 16
+            default=30, #og 16
             help="Number of hidden units in the projection layer of encoder.",
         )
         parser.add_argument(
@@ -127,9 +127,9 @@ class FairGNN_correct1(nn.Module):
         )  # train, cf, test
 
         args = parser.parse_known_args()[0]
-        args.num_hidden = 64
-        args.alpha = 4
-        args.beta = 0.01
+        args.num_hidden = 101
+        args.alpha = 14
+        args.beta = 1
         args.acc = args.roc = acc
 
         nhid = args.num_hidden

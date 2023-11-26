@@ -60,30 +60,6 @@ class MLP(nn.Module):
             if m.bias is not None:
                 m.bias.data.fill_(0.0)
 
-    # def forward(self, x, edge_index):
-    #     xs = []
-    #     # x = self.conv1(x, edge_index)
-    #     x = self.transition(x)
-    #     xs.append(x)
-    #     for _ in range(1):
-    #         x = self.convx(x, edge_index)
-    #         x = self.transition(x)
-    #         xs.append(x)
-    #     x = self.jk(xs)
-    #     return x
-
-    # def weights_init(self, m):
-    #     if isinstance(m, nn.Linear):
-    #         torch.nn.init.xavier_uniform_(m.weight.data)
-    #         if m.bias is not None:
-    #             m.bias.data.fill_(0.0)
-
-    # def forward(self, x, edge_index):
-    #     x = self.conv1(x, edge_index)
-    #     x = self.transition(x)
-    #     x = self.conv2(x, edge_index)
-    #     return x
-
 
 class Encoder_DGI(nn.Module):
     def __init__(self, nfeat, nhid):
@@ -118,7 +94,7 @@ class GraphInfoMax(nn.Module):
 
 class Encoder(torch.nn.Module):
     def __init__(self, in_channels: int, out_channels: int, 
-                base_model='gcn', k: int = 2):
+                base_model='mlp', k: int = 2):
         super(Encoder, self).__init__()
         self.base_model = base_model
         if self.base_model == 'gcn':
@@ -151,16 +127,18 @@ class GNN(torch.nn.Module):
             idx_test, 
             sens, 
             sens_idx, 
-            num_hidden=16, #16 bail, 128 pokec_n, 128 or 64 for pokec_z, 128 for nba
-            num_proj_hidden=16, 
-            lr=0.001, 
-            weight_decay=1e-4, 
+            num_hidden = 117,
+            # =16, #16 bail, 128 pokec_n, 128 or 64 for pokec_z, 128 for nba
+            num_proj_hidden = 6,
+            # =16, 
+            lr = 0.008, #0.008 bail MLP
+            weight_decay= 0.0006, #0.001 bail MLP
             drop_edge_rate_1=0.5, 
             drop_edge_rate_2=0.5, 
             drop_feature_rate_1=0.5, 
             drop_feature_rate_2=0.5, 
-            encoder="gcn", 
-            sim_coeff=0.5, #0.4 for bail, 0.5 for pokec_n/z
+            encoder="mlp", 
+            sim_coeff = 0.3, #0.4 for bail, 0.5 for pokec_n/z
             nclass=1, 
             device="cuda"):
         super(GNN, self).__init__()

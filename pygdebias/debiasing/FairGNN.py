@@ -126,7 +126,7 @@ class FairGNN(nn.Module):
         )  # train, cf, test
 
         args = parser.parse_known_args()[0]
-        args.num_hidden = 128 #64 for pokec_z
+        args.num_hidden = 66 #64 for pokec_z
         args.alpha = 10
         args.beta = 1
         args.acc = args.roc = acc
@@ -462,5 +462,4 @@ class FairGNN(nn.Module):
             result.extend([ACC, AUCROC, F1])
 
         return result
-
 
