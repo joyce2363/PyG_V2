@@ -94,7 +94,7 @@ class GraphInfoMax(nn.Module):
 
 class Encoder(torch.nn.Module):
     def __init__(self, in_channels: int, out_channels: int, 
-                base_model='gcn', k: int = 2):
+                base_model='mlp', k: int = 2):
         super(Encoder, self).__init__()
         self.base_model = base_model
         if self.base_model == 'gcn':
@@ -116,7 +116,7 @@ class Encoder(torch.nn.Module):
         return x
 
 
-class GNN(torch.nn.Module):
+class GCN_MLP(torch.nn.Module):
     def __init__(
             self, 
             adj, 
@@ -133,15 +133,15 @@ class GNN(torch.nn.Module):
             # =16, 
             lr = 0.001, #0.008 bail MLP
             weight_decay= 1e-5, #0.001 bail MLP
-            drop_edge_rate_1= 0.1, 
+            drop_edge_rate_1=0.1, 
             drop_edge_rate_2=0.1, 
             drop_feature_rate_1=0.1, 
             drop_feature_rate_2=0.1, 
-            encoder="gcn", 
+            encoder="mlp", 
             sim_coeff = 0.5, #0.4 for bail, 0.5 for pokec_n/z
             nclass=1, 
             device="cuda"):
-        super(GNN, self).__init__()
+        super(GCN_MLP, self).__init__()
 
         self.device = device
 
@@ -398,13 +398,6 @@ class GNN(torch.nn.Module):
                            F1])
         print("result in predict_sens_group: ", result)
         return result
-
-
-
-
-
-
-
 
 
 def drop_feature(x, drop_prob, sens_idx, sens_flag=True):

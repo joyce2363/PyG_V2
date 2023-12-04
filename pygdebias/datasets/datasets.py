@@ -30,7 +30,7 @@ import requests
 
 
 class Dataset(object):
-    def __init__(self, root: str = "./dataset") -> None:
+    def __init__(self, seed, root: str = "./dataset") -> None:
         self.adj_ = None
         self.features_ = None
         self.labels_ = None
@@ -38,7 +38,7 @@ class Dataset(object):
         self.idx_val_ = None
         self.idx_test_ = None
         self.sens_ = None
-
+        self.seed_ = seed
         self.root = root
         if not os.path.exists(self.root):
             os.makedirs(self.root)
@@ -130,7 +130,9 @@ class Dataset(object):
         else:
             raise ValueError("datatype should be torch.tensor, tf.tensor, or np.array")
 
-
+    def seed(self, datatype: int):
+        if self.seed_:
+            return self.seed_
 def mx_to_torch_sparse_tensor(sparse_mx, is_sparse=False, return_tensor_sparse=True):
     """Convert a scipy sparse matrix to a torch sparse tensor."""
     if not is_sparse:
@@ -151,18 +153,13 @@ def mx_to_torch_sparse_tensor(sparse_mx, is_sparse=False, return_tensor_sparse=T
 
 class Nba(Dataset):
     def __init__(
-        self, dataset_name="nba", predict_attr_specify=None, return_tensor_sparse=True
+        self, 
+        seed,
+        dataset_name="nba", 
+        predict_attr_specify=None, 
+        return_tensor_sparse=True
     ):
-        super().__init__()
-        dataset = "nba"
-        sens_attr = "country"
-        predict_attr = "SALARY"
-        label_number = 100
-        sens_number = 50
-        seed = 2
-        path = "./dataset/NBA"
-        test_idx = True
-
+        super(Nba, self).__init__(seed)
         (
             adj,
             features,
@@ -173,14 +170,14 @@ class Nba(Dataset):
             sens,
             idx_sens_train,
         ) = self.load_pokec(
-            dataset,
-            sens_attr,
-            predict_attr if predict_attr_specify == None else predict_attr_specify,
-            path=path,
-            label_number=label_number,
-            sens_number=sens_number,
+            dataset = "nba",
+            sens_attr = "country",
+            predict_attr = "SALARY",
+            path= "./dataset/NBA",
+            label_number=100,
+            sens_number=50,
             seed=seed,
-            test_idx=test_idx,
+            test_idx = True,
         )
 
         # adj=adj.todense()
@@ -201,10 +198,10 @@ class Nba(Dataset):
         dataset,
         sens_attr,
         predict_attr,
+        label_number,
+        sens_number,
+        seed,
         path="../dataset/pokec/",
-        label_number= 100,
-        sens_number=50,
-        seed= 1,
         test_idx=False,
     ):
         """Load data"""
@@ -451,25 +448,12 @@ class Pokec_z_NO(Dataset):
 class Pokec_z(Dataset):
     def __init__(
         self,
+        seed,
         dataset_name="pokec_z",
         predict_attr_specify=None,
         return_tensor_sparse=True,
     ):
-        super().__init__()
-        if dataset_name != "nba":
-            if dataset_name == "pokec_z":
-                dataset = "region_job"
-            elif dataset_name == "pokec_n":
-                dataset = "region_job_2"
-            else:
-                dataset = None
-            sens_attr = "region"
-            predict_attr = "I_am_working_in_field"
-            label_number = 500 #1000 #500
-            sens_number = 200 #500 #200
-            seed = 4
-            path = "./dataset/pokec/"
-            test_idx = False
+        super(Pokec_z, self).__init__(seed)
         (
             adj,
             features,
@@ -480,14 +464,14 @@ class Pokec_z(Dataset):
             sens,
             # idx_sens_train,
         ) = self.load_pokec(
-            dataset,
-            sens_attr,
-            predict_attr if predict_attr_specify == None else predict_attr_specify,
-            path=path,
-            label_number=label_number,
-            sens_number=sens_number,
+            dataset="pokec_z",
+            sens_attr="region",
+            predict_attr="I_am_working_in_field",
+            path="./dataset/pokec/",
+            label_number= 500,
+            sens_number= 200,
             seed=seed,
-            test_idx=test_idx,
+            test_idx=False,
         )
 
         # adj=adj.todense(
@@ -506,12 +490,12 @@ class Pokec_z(Dataset):
     def load_pokec(
         self,
         dataset,
+        seed,
         sens_attr,
         predict_attr,
         path="../dataset/pokec/",
         label_number=500,
         sens_number=200,
-        seed=4,
         test_idx=False,
     ):
         """Load data"""
@@ -569,6 +553,13 @@ class Pokec_z(Dataset):
         label_idx_1 = np.where(labels == 1)[0]
         random.shuffle(label_idx_0)
         random.shuffle(label_idx_1)
+        dataset = str(1)
+        with open("label_idx_0_" + dataset + "_" + str(seed)+ ".pickle", "rb") as handle:
+            label_idx_0 = pickle.load(handle)
+        with open("label_idx_1_" + dataset + "_" + str(seed)+ ".pickle", "rb") as handle:
+            label_idx_1 = pickle.load(handle) 
+        print("label_idx_0: ", label_idx_0)
+        print("label_idx_1: ", label_idx_1)
 
         idx_train = np.append(label_idx_0[:min(int(0.5 * len(label_idx_0)), label_number // 2)],
                           label_idx_1[:min(int(0.5 * len(label_idx_1)), label_number // 2)])
@@ -613,11 +604,12 @@ class Pokec_z(Dataset):
 class Pokec_n(Dataset):
     def __init__(
         self,
+        seed,
         dataset_name="pokec_n",
         predict_attr_specify=None,
         return_tensor_sparse=True,
     ):
-        super().__init__()
+        super(Pokec_n, self).__init__(seed)
         (adj, 
         features, 
         labels, 
@@ -633,7 +625,7 @@ class Pokec_n(Dataset):
             path = 'none',
             label_number=500,
             sens_number = 200,
-            seed = 1,
+            seed = seed,
             test_idx= False,
         )
 
@@ -652,12 +644,12 @@ class Pokec_n(Dataset):
     def load_pokec(
         self,
         dataset,
+        seed,
         sens_attr,
         predict_attr,
         path="../dataset/pokec/",
         label_number=500,
         sens_number=200,
-        seed=1,
         test_idx=False,
     ):
         """Load data"""
@@ -719,6 +711,13 @@ class Pokec_n(Dataset):
 
         random.shuffle(label_idx_0)
         random.shuffle(label_idx_1)
+        dataset = str(2)
+        with open("label_idx_0_" + dataset + "_" + str(seed)+ ".pickle", "rb") as handle:
+            label_idx_0 = pickle.load(handle)
+        with open("label_idx_1_" + dataset + "_" + str(seed)+ ".pickle", "rb") as handle:
+            label_idx_1 = pickle.load(handle) 
+        print("label_idx_0: ", label_idx_0)
+        print("label_idx_1: ", label_idx_1)
 
         idx_train = np.append(label_idx_0[:min(int(0.5 * len(label_idx_0)), label_number // 2)],
                           label_idx_1[:min(int(0.5 * len(label_idx_1)), label_number // 2)])
@@ -749,8 +748,9 @@ class Pokec_n(Dataset):
     # , idx_sens_train
 
 class Bail(Dataset):
-    def __init__(self):
-        super(Bail, self).__init__()
+    def __init__(self,
+                 seed):
+        super(Bail, self).__init__(seed)
         (
             adj,
             features,
@@ -761,7 +761,7 @@ class Bail(Dataset):
             idx_val,
             idx_test,
             sens_idx,
-        ) = self.load_bail("bail")
+        ) = self.load_bail("bail", seed)
 
         node_num = features.shape[0]
 
@@ -788,6 +788,7 @@ class Bail(Dataset):
     def load_bail(
         self,
         dataset,
+        seed,
         sens_attr="WHITE",
         predict_attr="RECID",
         path="./dataset/bail/",
@@ -847,11 +848,19 @@ class Bail(Dataset):
 
         import random
 
-        random.seed(1)
+        random.seed(seed)
         label_idx_0 = np.where(labels == 0)[0]
         label_idx_1 = np.where(labels == 1)[0]
         random.shuffle(label_idx_0)
         random.shuffle(label_idx_1)
+
+        with open("label_idx_0_" + dataset + "_" + str(seed)+ ".pickle", "rb") as handle:
+            label_idx_0 = pickle.load(handle)
+        with open("label_idx_1_" + dataset + "_" + str(seed)+ ".pickle", "rb") as handle:
+            label_idx_1 = pickle.load(handle) 
+        print("label_idx_0: ", label_idx_0)
+        print("label_idx_1: ", label_idx_1)
+
         idx_train = np.append(
             label_idx_0[: min(int(0.5 * len(label_idx_0)), label_number // 2)],
             label_idx_1[: min(int(0.5 * len(label_idx_1)), label_number // 2)],
@@ -876,8 +885,8 @@ class Bail(Dataset):
 
 
 class Income(Dataset):
-    def __init__(self):
-        super(Income, self).__init__()
+    def __init__(self, seed):
+        super(Income, self).__init__(seed)
         (
             adj,
             features,
@@ -888,10 +897,11 @@ class Income(Dataset):
             idx_val,
             idx_test,
             sens_idx,
-        ) = self.load_income("income")
-
+        ) = self.load_income("income", seed)
+        seed = seed
+        # print("JOY SEED:", seed)
         node_num = features.shape[0]
-
+        self.seed = seed
         idx_train = torch.LongTensor(idx_train)
         idx_val = torch.LongTensor(idx_val)
         idx_test = torch.LongTensor(idx_test)
@@ -906,7 +916,6 @@ class Income(Dataset):
         self.idx_test_ = idx_test
         self.sens_ = sens
         self.sens_idx_ = sens_idx
-
     def feature_norm(self, features):
         min_values = features.min(axis=0)[0]
         max_values = features.max(axis=0)[0]
@@ -915,6 +924,7 @@ class Income(Dataset):
     def load_income(
         self,
         dataset,
+        seed,
         sens_attr="race",
         predict_attr="income",
         path="empty",
@@ -959,12 +969,23 @@ class Income(Dataset):
         labels = torch.LongTensor(labels)
 
         import random
-
-        random.seed(1)
         label_idx_0 = np.where(labels == 0)[0]
         label_idx_1 = np.where(labels == 1)[0]
         random.shuffle(label_idx_0)
         random.shuffle(label_idx_1)
+        # /home/joyce/PyG_V2/pygdebias/datasets/label_idx_0_1_1.pickle
+        print("seed: ", seed)
+        # with open("label_idx_0_" + dataset + "_" + str(seed) + ".pickle", "wb") as handle:
+        #     pickle.dump(label_idx_0, handle)
+        # with open("label_idx_1_" + dataset + "_" + str(seed) + ".pickle", "wb") as handle:
+        #     pickle.dump(label_idx_1, handle)
+
+        with open("label_idx_0_" + dataset + "_" + str(seed)+ ".pickle", "rb") as handle:
+            label_idx_0 = pickle.load(handle)
+        with open("label_idx_1_" + dataset + "_" + str(seed)+ ".pickle", "rb") as handle:
+            label_idx_1 = pickle.load(handle) 
+        print("label_idx_0: ", label_idx_0)
+        print("label_idx_1: ", label_idx_1)
         idx_train = np.append(
             label_idx_0[: min(int(0.5 * len(label_idx_0)), label_number // 2)],
             label_idx_1[: min(int(0.5 * len(label_idx_1)), label_number // 2)],

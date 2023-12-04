@@ -5,8 +5,9 @@ from .EDITS import EDITS as EDITS
 # from .FairEdit import FairEdit as FairEdit
 
 from .FairGNN_edited_optune import FairGNN_edited_optune as FairGNN_edited_optune
-# from .FairGNN import FairGNN as FairGNN
-from .FairGNN_correct1 import FairGNN_correct1 as FairGNN_correct1
+from .FairGNN import FairGNN as FairGNN
+from .GCN_MLP import GCN_MLP as GCN_MLP
+# from .FairGNN_correct1 import FairGNN_correct1 as FairGNN_correct1
 
 # from .FairVGNN import FairVGNN as FairVGNN
 

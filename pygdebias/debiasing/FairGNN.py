@@ -7,19 +7,6 @@ import time
 import torch
 from tqdm import tqdm
 from torch_geometric.nn import GCNConv
-# class GCN(nn.Module):
-#     def __init__(self, nfeat, nhid, nclass, dropout):
-#         super(GCN, self).__init__()
-#         self.body = GCN_Body(nfeat,nhid,dropout)
-#         self.fc = nn.Linear(nhid,nclass)
-
-#     def forward(self, g, x):
-#         x = self.body(g,x)
-#         x = self.fc(x)
-#         return x
-
-
-
 class GCN(nn.Module):
     def __init__(self, nfeat, nhid, nclass, dropout=0.5):
         super(GCN, self).__init__()
@@ -54,7 +41,7 @@ def get_model(nfeat, args):
 
 class FairGNN(nn.Module):
     def __init__(
-        self, nfeat, sim_coeff=0.6, n_order=10, subgraph_size=30, acc=0.69, epoch=2000
+        self, nfeat, sim_coeff=0.6, n_order=10, subgraph_size=30, acc=0.42, epoch=2000
     ):
         super(FairGNN, self).__init__()
 
@@ -102,7 +89,7 @@ class FairGNN(nn.Module):
             "--dataset",
             type=str,
             default="pokec_z",
-            choices=["synthetic", "bail", "credit"],
+            choices=["synthetic", "bail", "credit", "income", "nba", "pokec_z", "pokec_n", "bail"],
         )
         parser.add_argument(
             "--encoder",
@@ -126,9 +113,9 @@ class FairGNN(nn.Module):
         )  # train, cf, test
 
         args = parser.parse_known_args()[0]
-        args.num_hidden = 66 #64 for pokec_z
-        args.alpha = 10
-        args.beta = 1
+        args.num_hidden = 64 #64 for pokec_z
+        args.alpha = 4
+        args.beta = 0.01
         args.acc = args.roc = acc
 
         nhid = args.num_hidden
