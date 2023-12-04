@@ -112,18 +112,6 @@ for i in range(1, 6):
     accuracy.append(ACC)
     satistical_parity.append(SP)
     equal_opportunity.append(EO)
-    curr_dict['Model'] = ['FairGNN']
-    if args.dataset == 'pokec_z': 
-        curr_dict['Dataset'] = [str('pokec1')]
-    elif args.dataset == 'pokec_n': 
-        curr_dict['Dataset'] = [str('pokec2')]
-    else: 
-        curr_dict['Dataset'] = [str(args.dataset)]
-
-    curr_dict['Average'] = [str(np.mean(accuracy)) + str(' += ') + str(np.var(accuracy))]
-    curr_dict['Statistical Parity'] = [str(np.mean(satistical_parity)) + str(' += ') + str(np.var(satistical_parity))]
-    curr_dict['Equal Opportunity'] = [str(np.mean(equal_opportunity)) + str(' += ') + str(np.var(equal_opportunity))]
-
 
     print("ACC:", ACC)
     print("AUCROC: ", AUCROC)
@@ -137,11 +125,23 @@ for i in range(1, 6):
     print("SP: ", SP)
     print("EO:", EO)
 
-print("average for:", args.dataset , np.mean(accuracy), '+=', np.var(accuracy))
-print("statistical parity:", args.dataset, np.mean(satistical_parity), '+=', np.var(satistical_parity))
-print("equal Opportunity:", args.dataset, np.mean(equal_opportunity), '+=', np.var(equal_opportunity))
+curr_dict['Model'] = 'FairGNN'
 
-# data.append(curr_dict)
+if args.dataset == 'pokec_z': 
+    curr_dict['Dataset'] = str('pokec1')
+elif args.dataset == 'pokec_n': 
+    curr_dict['Dataset'] = str('pokec2')
+else: 
+    curr_dict['Dataset'] = str(args.dataset)
+
+curr_dict['Average'] = str(np.round(np.mean(accuracy), decimals=4) *100) + str(' += ') + str(np.round(np.var(accuracy), decimals=4)*100)
+curr_dict['Statistical Parity'] = str(np.round(np.mean(satistical_parity), decimals=4)*100) + str(' += ') + str(np.round(np.var(satistical_parity), decimals=4)*100)
+curr_dict['Equal Opportunity'] = str(np.round(np.mean(equal_opportunity), decimals=4)*100) + str(' += ') + str(np.round(np.var(equal_opportunity), decimals=4)*100)
+
+print("curr_dict: ", curr_dict)
+print("average for:", args.dataset , np.round(np.mean(accuracy), decimals=4) *100, '+=', np.round(np.var(accuracy), decimals=4)*100)
+print("statistical parity:", args.dataset, np.round(np.mean(satistical_parity), decimals=4)*100, '+=', np.round(np.var(satistical_parity), decimals=4)*100)
+print("equal Opportunity:", args.dataset, np.round(np.mean(equal_opportunity), decimals=4)*100, '+=', np.round(np.var(equal_opportunity), decimals=4)*100)
 
 
 filename = 'output.csv'
@@ -152,7 +152,7 @@ with open(filename, 'a', newline='') as file:
 
 
     # Write header
-    writer.writeheader()
+    # writer.writeheader()
 
     # Write rows
     for i in range(0,1):

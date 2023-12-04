@@ -1,4 +1,5 @@
 import numpy as np
+import csv
 import argparse
 from pygdebias.debiasing import GNN
 from pygdebias.datasets import Income, Pokec_z, Pokec_n, Bail, Nba
@@ -8,6 +9,7 @@ parser.add_argument('--dataset', type=str, default="nba", help='One dataset from
 args = parser.parse_args()
 
 # Available choices: 'Credit', 'German', 'Facebook', 'Pokec_z', 'Pokec_n', 'Nba', 'Twitter', 'Google', 'LCC', 'LCC_small', 'Cora', 'Citeseer', 'Amazon', 'Yelp', 'Epinion', 'Ciao', 'Dblp', 'Filmtrust', 'Lastfm', 'Ml-100k', 'Ml-1m', 'Ml-20m', 'Oklahoma', 'UNC', 'Bail'.
+curr_dict = {}
 
 for i in range (1,6): 
     seed = i 
@@ -133,6 +135,38 @@ for i in range (1,6):
     print("F1_sens1: ", F1_sens1)
     print("SP: ", SP)
     print("EO:", EO)
-print("average for:", args.dataset , np.mean(accuracy), '+=', np.var(accuracy))
-print("statistical parity:", args.dataset, np.mean(satistical_parity), '+=', np.var(satistical_parity))
-print("equal Opportunity:", args.dataset, np.mean(equal_opportunity), '+=', np.var(equal_opportunity))
+curr_dict['Model'] = 'Vanilla GCN'
+
+if args.dataset == 'pokec_z': 
+    curr_dict['Dataset'] = str('pokec1')
+elif args.dataset == 'pokec_n': 
+    curr_dict['Dataset'] = str('pokec2')
+else: 
+    curr_dict['Dataset'] = str(args.dataset)
+
+curr_dict['Average'] = str(np.round(np.mean(accuracy), decimals=4) *100) + str(' += ') + str(np.round(np.var(accuracy), decimals=4)*100)
+curr_dict['Statistical Parity'] = str(np.round(np.mean(satistical_parity), decimals=4)*100) + str(' += ') + str(np.round(np.var(satistical_parity), decimals=4)*100)
+curr_dict['Equal Opportunity'] = str(np.round(np.mean(equal_opportunity), decimals=4)*100) + str(' += ') + str(np.round(np.var(equal_opportunity), decimals=4)*100)
+
+print("curr_dict: ", curr_dict)
+print("average for:", args.dataset , np.round(np.mean(accuracy), decimals=4) *100, '+=', np.round(np.var(accuracy), decimals=4)*100)
+print("statistical parity:", args.dataset, np.round(np.mean(satistical_parity), decimals=4)*100, '+=', np.round(np.var(satistical_parity), decimals=4)*100)
+print("equal Opportunity:", args.dataset, np.round(np.mean(equal_opportunity), decimals=4)*100, '+=', np.round(np.var(equal_opportunity), decimals=4)*100)
+
+
+filename = 'output.csv'
+
+# Writing data to CSV
+with open(filename, 'a', newline='') as file:
+    writer = csv.DictWriter(file, fieldnames=curr_dict.keys())
+
+
+    # Write header
+    # writer.writeheader()
+
+    # Write rows
+    for i in range(0,1):
+        row = {key: curr_dict[key] for key in curr_dict}
+        writer.writerow(row)
+
+print(f"Data has been written to {filename}")
