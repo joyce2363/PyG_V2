@@ -38,25 +38,19 @@ class GCN(nn.Module):
         x = self.gc1(x, edge_index)
         return x
 
-class SAGE(nn.Module):
-    def __init__(self, nfeat, nhid, dropout=0.5):
-        super(SAGE, self).__init__()
+class GAT(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5, nheads=1): 
+        super(GAT, self).__init__()
 
-        # Implemented spectral_norm in the sage main file
-        # ~/anaconda3/envs/PYTORCH/lib/python3.7/site-packages/torch_geometric/nn/conv/sage_conv.py
-        self.conv1 = SAGEConv(nfeat, nhid, normalize=True)
-        self.conv1.aggr = 'mean'
+        self.conv1 = GATConv(nfeat, nhid, heads=nheads, dropout=dropout)
+        self.conv1.att = None 
         self.transition = nn.Sequential(
-            nn.ReLU(),
-            nn.BatchNorm1d(nhid),
+            nn.ReLU(), 
+            nn.BatchNorm1d(nhid * nheads), 
             nn.Dropout(p=dropout)
         )
-        self.conv2 = SAGEConv(nhid, nhid, normalize=True)
-        self.conv2.aggr = 'mean'
-
-        for m in self.modules():
+        for m in self.modules(): 
             self.weights_init(m)
-
     def weights_init(self, m):
         if isinstance(m, nn.Linear):
             torch.nn.init.xavier_uniform_(m.weight.data)
@@ -65,9 +59,9 @@ class SAGE(nn.Module):
 
     def forward(self, x, edge_index):
         x = self.conv1(x, edge_index)
+        x = x.flatten(start_dim=1)  # Flatten node features across heads
         x = self.transition(x)
-        x = self.conv2(x, edge_index)
-        return x
+        return x 
     
 class Encoder_DGI(nn.Module):
     def __init__(self, nfeat, nhid):
@@ -97,8 +91,8 @@ class Encoder(torch.nn.Module):
         self.base_model = base_model
         if self.base_model == 'gcn':
             self.conv = GCN(in_channels, out_channels)
-        elif self.base_model == 'sage': 
-            self.conv = SAGE(in_channels, out_channels)
+        elif self.base_model == 'gat': 
+            self.conv = GAT(in_channels, out_channels)
 
 
         for m in self.modules():
@@ -116,9 +110,9 @@ class Encoder(torch.nn.Module):
 
 
 
-class NIFTY(torch.nn.Module):
-    def __init__(self, adj, features, labels, idx_train, idx_val, idx_test, sens, sens_idx=-1, num_hidden=16, num_proj_hidden=16, lr=0.001, weight_decay=1e-5, drop_edge_rate_1=0.1, drop_edge_rate_2=0.1, drop_feature_rate_1=0.1, drop_feature_rate_2=0.1, encoder="gcn", sim_coeff=0.5, nclass=1, device="cuda"):
-        super(NIFTY, self).__init__()
+class NIFTY_GAT(torch.nn.Module):
+    def __init__(self, adj, features, labels, idx_train, idx_val, idx_test, sens, sens_idx=-1, num_hidden=16, num_proj_hidden=16, lr=0.001, weight_decay=1e-5, drop_edge_rate_1=0.1, drop_edge_rate_2=0.1, drop_feature_rate_1=0.1, drop_feature_rate_2=0.1, encoder="gat", sim_coeff=0.5, nclass=1, device="cuda"):
+        super(NIFTY_GAT, self).__init__()
 
         self.device = device
 
@@ -337,7 +331,7 @@ class NIFTY(torch.nn.Module):
                 self.val_loss=val_loss.item()
 
                 best_loss = val_loss
-                torch.save(self.state_dict(), f'weights_GNN_{self.encoder}.pt')
+                torch.save(self.state_dict(), f'weights_GNN_{"gat"}.pt')
 
 
 
@@ -418,12 +412,12 @@ class NIFTY(torch.nn.Module):
 
                 print(f'{epoch} | {val_s_loss:.4f} | {val_c_loss:.4f}')
                 best_loss = val_c_loss + val_s_loss
-                torch.save(self.state_dict(), f'weights_ssf_{self.encoder}.pt')
+                torch.save(self.state_dict(), f'weights_ssf_{"gat"}.pt')
 
 
     def predict_GNN(self):
 
-        self.load_state_dict(torch.load(f'weights_GNN_{self.encoder}.pt'))
+        self.load_state_dict(torch.load(f'weights_GNN_{"gat"}.pt'))
         self.eval()
         emb = self.forward(self.features.to(self.device), self.edge_index.to(self.device))
         output = self.forwarding_predict(emb)
@@ -452,7 +446,7 @@ class NIFTY(torch.nn.Module):
 
     def predict(self):
 
-        self.load_state_dict(torch.load(f'weights_ssf_{self.encoder}.pt'))
+        self.load_state_dict(torch.load(f'weights_ssf_{"gat"}.pt'))
         self.eval()
         emb = self.forward(self.features.to(self.device), self.edge_index.to(self.device))
         output = self.forwarding_predict(emb)

@@ -6,6 +6,9 @@ from .EDITS import EDITS as EDITS
 
 from .FairGNN_edited_optune import FairGNN_edited_optune as FairGNN_edited_optune
 from .FairGNN import FairGNN as FairGNN
+# from .FairGNN_2 import FairGNN_2 as FairGNN_2
+from .FairGNN_3 import FairGNN_3 as FairGNN_3
+
 from .GCN_MLP import GCN_MLP as GCN_MLP
 # from .FairGNN_correct1 import FairGNN_correct1 as FairGNN_correct1
 
@@ -16,13 +19,14 @@ from .GCN_MLP import GCN_MLP as GCN_MLP
 # from .GEAR import GEAR as GEAR
 
 from .GNN import GNN as GNN
-from .GNN import MLP as MLP
+# from .GNN import MLP as MLP
 
 # from .GUIDE import GUIDE as GUIDE
 
 # from .InFoRM_GNN import InFoRM_GNN as InFoRM_GNN
 
-# from .NIFTY import NIFTY as NIFTY
+from .NIFTY import NIFTY as NIFTY
+from .NIFTY_GAT import NIFTY_GAT as NIFTY_GAT
 
 # from .RawlsGCN import RawlsGCN as RawlsGCN
 

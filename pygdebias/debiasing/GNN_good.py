@@ -29,18 +29,71 @@ class Classifier(nn.Module):
         ret = self.fc1(seq)
         return ret
 
-
-class GCN(nn.Module):
-    def __init__(self, nfeat, nhid):
-        super(GCN, self).__init__()
-        self.gc1 = GCNConv(nfeat, nhid)
-        self.fc = nn.Linear(nhid, nhid) #nhid, nhid
+class GAT(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5, nheads=1): 
+        super(GAT, self).__init__()
+        # nfeat = 96, # test
+        # nhid = 16, # test
+        self.conv1 = GATConv(nfeat, nhid, heads=nheads, dropout=dropout)
+        self.conv1.att = None 
+        self.transition = nn.Sequential(
+            nn.ReLU(), 
+            nn.BatchNorm1d(nhid * nheads), 
+            nn.Dropout(p=dropout)
+        )
+        for m in self.modules(): 
+            self.weights_init(m)
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
 
     def forward(self, x, edge_index):
-        x = self.gc1(x, edge_index)
-        x = self.fc(x)
+        x = self.conv1(x, edge_index)
+        x = x.flatten(start_dim=1)  # Flatten node features across heads
+        x = self.transition(x)
+        return x 
+    
+class SAGE(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5):
+        super(SAGE, self).__init__()
 
+        # Implemented spectral_norm in the sage main file
+        # ~/anaconda3/envs/PYTORCH/lib/python3.7/site-packages/torch_geometric/nn/conv/sage_conv.py
+        self.conv1 = SAGEConv(nfeat, nhid, normalize=True)
+        self.conv1.aggr = 'mean'
+        self.transition = nn.Sequential(
+            nn.ReLU(),
+            nn.BatchNorm1d(nhid),
+            nn.Dropout(p=dropout)
+        )
+        for m in self.modules():
+            self.weights_init(m)
+
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
+
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index)
+        x = self.transition(x)
+        # x = self.conv2(x, edge_index)
         return x
+    
+# class GCN(nn.Module):
+#     def __init__(self, nfeat, nhid):
+#         super(GCN, self).__init__()
+#         self.gc1 = GCNConv(nfeat, nhid)
+#         self.fc = nn.Linear(nhid, nhid) #nhid, nhid
+
+#     def forward(self, x, edge_index):
+#         x = self.gc1(x, edge_index)
+#         x = self.fc(x)
+
+#         return x
 
 class MLP(nn.Module):
     def __init__(self, input_size, hidden_size):
@@ -59,6 +112,22 @@ class MLP(nn.Module):
             torch.nn.init.xavier_uniform_(m.weight.data)
             if m.bias is not None:
                 m.bias.data.fill_(0.0)
+
+class GIN(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5):
+        super(GIN, self).__init__()
+
+        self.mlp1 = nn.Sequential(
+            spectral_norm(nn.Linear(nfeat, nhid)),
+            nn.ReLU(),
+            nn.BatchNorm1d(nhid),
+            spectral_norm(nn.Linear(nhid, nhid)),
+        )
+        self.conv1 = GINConv(self.mlp1)
+
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index)
+        return x
 
 
 class Encoder_DGI(nn.Module):
@@ -94,14 +163,19 @@ class GraphInfoMax(nn.Module):
 
 class Encoder(torch.nn.Module):
     def __init__(self, in_channels: int, out_channels: int, 
-                base_model='mlp', k: int = 2):
+                base_model="gat", k: int = 2):
         super(Encoder, self).__init__()
         self.base_model = base_model
         if self.base_model == 'gcn':
             self.conv = GCN(in_channels, out_channels)
         elif self.base_model == 'mlp':
             self.conv = MLP(in_channels, out_channels) # (in_channels, out_channels)
-
+        elif self.base_model == 'gin':
+            self.conv = GIN(in_channels, out_channels)
+        elif self.base_model == "sage":
+            self.conv = SAGE(in_channels, out_channels)
+        elif self.base_model == 'gat':
+            self.conv = GAT(in_channels, out_channels)
         for m in self.modules():
             self.weights_init(m)
 
@@ -116,7 +190,7 @@ class Encoder(torch.nn.Module):
         return x
 
 
-class GCN_MLP(torch.nn.Module):
+class GNN(torch.nn.Module):
     def __init__(
             self, 
             adj, 
@@ -127,40 +201,32 @@ class GCN_MLP(torch.nn.Module):
             idx_test, 
             sens, 
             sens_idx, 
-            num_hidden = 16,
-            # =16, #16 bail, 128 pokec_n, 128 or 64 for pokec_z, 128 for nba
-            num_proj_hidden = 16,
-            # =16, 
-            lr = 0.001, #0.008 bail MLP
-            weight_decay= 1e-5, #0.001 bail MLP
-            drop_edge_rate_1=0.1, 
-            drop_edge_rate_2=0.1, 
-            drop_feature_rate_1=0.1, 
-            drop_feature_rate_2=0.1, 
-            encoder="mlp", 
-            sim_coeff = 0.5, #0.4 for bail, 0.5 for pokec_n/z
+            num_hidden, 
+            num_proj_hidden,
+            lr,
+            weight_decay, 
+            sim_coeff,
+            encoder="gat", 
             nclass=1, 
-            device="cuda"):
-        super(GCN_MLP, self).__init__()
-
+            device="cuda"
+            ):
+        super(GNN, self).__init__()        
         self.device = device
-
         self.edge_index = convert.from_scipy_sparse_matrix(sp.coo_matrix(adj.to_dense().numpy()))[0]
-        # self.edge_index = adj.coalesce().indices()
         
         # self.encoder = Encoder(input_size=features.shape[1], hidden_size=16, output_size = num_hidden).to(device)
+        print("features.shape[1]:", features.shape[1])
+        print("NUM_HIDDEN:", num_hidden)
         self.encoder = Encoder(in_channels=features.shape[1], out_channels=num_hidden, base_model=encoder).to(device)
-        # self.mlp = MLP(features, num_hidden, output_dim = 64, num_layers = 64, activation = nn.ReLU())
+        
         self.sim_coeff = sim_coeff
         #self.encoder = encoder
         self.labels = labels
-
-
         self.idx_train = idx_train
         self.idx_val = idx_val
         self.idx_test = idx_test
         self.sens = sens
-        self.sens_idx = sens_idx
+        # self.sens_idx = sens_idx
         self.drop_edge_rate_1=self.drop_edge_rate_2=0.5
         self.drop_feature_rate_1=self.drop_feature_rate_2=0.5
 
@@ -304,20 +370,27 @@ class GCN_MLP(torch.nn.Module):
             #     self.labels[self.idx_val].unsqueeze(1).float().to(self.device)) #I believe that these should all be the labels
             if epoch % 100 == 0:
                 print(f"[Train] Epoch {epoch}: train_c_loss: {cl_loss:.4f} | val_c_loss: {val_loss:.4f}")
-
+            # print("VAL_LOSS: ", val_loss)
+            # print("BEST_LOSS: ", best_loss)
             if (val_loss) < best_loss:
+                # print("ENTERED!")
                 self.val_loss=val_loss.item()
 
                 best_loss = val_loss
-                torch.save(self.state_dict(), f'weights_GNN_{self.encoder}.pt')
-
-
+                # if self.encoder == "sage": 
+                torch.save(self.state_dict(), f'weights_GNN_{"gat"}.pt')
+                # else: 
+                #     torch.save(self.state_dict(), f'weights_GNN_{self.encoder}.pt')
 
 
 
     def predict(self):
+        # if self.encoder == "sage": 
+        self.load_state_dict(torch.load(f'weights_GNN_{"gat"}.pt'))
+        # else: 
+            # self.load_state_dict(torch.load(f'weights_GNN_{self.encoder}.pt'))
+        # self.load_state_dict(torch.load(f'weights_GNN_{self.encoder}.pt'))
 
-        self.load_state_dict(torch.load(f'weights_GNN_{self.encoder}.pt'))
         self.eval()
         emb = self.forward(self.features.to(self.device), self.edge_index.to(self.device))
         output = self.forwarding_predict(emb)
@@ -368,7 +441,6 @@ class GCN_MLP(torch.nn.Module):
 
     def fair_metric(self, pred, labels, sens):
 
-
         idx_s0 = sens == 0
         idx_s1 = sens == 1
         idx_s0_y1 = np.bitwise_and(idx_s0, labels == 1)
@@ -395,7 +467,6 @@ class GCN_MLP(torch.nn.Module):
                            F1])
         print("result in predict_sens_group: ", result)
         return result
-
 
 def drop_feature(x, drop_prob, sens_idx, sens_flag=True):
     drop_mask = torch.empty(

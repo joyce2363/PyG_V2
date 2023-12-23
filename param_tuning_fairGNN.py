@@ -1,4 +1,4 @@
-from pygdebias.debiasing import FairGNN_2
+from pygdebias.debiasing import FairGNN
 from pygdebias.datasets import Pokec_n, Pokec_z, Nba, Income, Bail
 import optuna
 import csv
@@ -80,7 +80,7 @@ def objective(trial):
     weight_decay = trial.suggest_categorical("weight_decay", [1e-2, 0.05, 1e-3, 0.002, 1e-4])
 
     # Create GNN model with suggested hyperparameters
-    model = FairGNN_2(
+    model = FairGNN(
                     # adj, 
                     # features, 
                     # labels, 
@@ -123,7 +123,7 @@ def objective(trial):
 study = optuna.create_study(direction='maximize')
 
 # Run the optimization
-study.optimize(objective, n_trials=100)  # Run 100 trials
+study.optimize(objective, n_trials=1)  # Run 100 trials
 best_params = study.best_params
 best_value = study.best_value
 

@@ -1,9 +1,9 @@
-from pygdebias.debiasing import FairGNN_2
-from pygdebias.datasets import Pokec_n, Pokec_z, Nba, Income, Bail
-import optuna
+import numpy as np
 import csv
+from pygdebias.debiasing import NIFTY_GAT
+from pygdebias.datasets import Income, Pokec_z, Pokec_n, Bail, Nba
+import optuna
 
-# Available choices: 'Credit', 'German', 'Facebook', 'Pokec_z', 'Pokec_n', 'Nba', 'Twitter', 'Google', 'LCC', 'LCC_small', 'Cora', 'Citeseer', 'Amazon', 'Yelp', 'Epinion', 'Ciao', 'Dblp', 'Filmtrust', 'Lastfm', 'Ml-100k', 'Ml-1m', 'Ml-20m', 'Oklahoma', 'UNC', 'Bail'.
 import argparse
 
 
@@ -71,34 +71,27 @@ elif args.dataset == "bail":
 def objective(trial):
     # Define the hyperparameter search space
     num_hidden = trial.suggest_categorical("num_hidden", [16, 64, 128, 256])
-    sim_coeff = trial.suggest_categorical("sim_coeff", [0.3, 0.5, 0.7])
-    acc = trial.suggest_categorical("acc", [0.2, 0.3, 0.4, 0.5, 0.6, 0.7])
-    alpha = trial.suggest_categorical("alpha", [1, 10, 20, 40, 80, 160, 380])
-    beta = trial.suggest_categorical("beta", [1, 10, 20, 40, 80, 160, 380])
-    proj_hidden = trial.suggest_categorical("proj_hidden", [4, 16, 64, 128, 256])
+    num_proj_hidden = trial.suggest_categorical("num_proj_hidden", [4, 16, 64, 128, 256])
     lr = trial.suggest_categorical("lr", [1e-2, 1e-3, 1e-4, 1e-5])
-    weight_decay = trial.suggest_categorical("weight_decay", [1e-2, 0.05, 1e-3, 0.002, 1e-4])
+    weight_decay = trial.suggest_categorical("weight_decay", [1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
+    sim_coeff = trial.suggest_categorical("sim_coeff", [0.3, 0.5, 0.7])
 
-    # Create GNN model with suggested hyperparameters
-    model = FairGNN_2(
-                    # adj, 
-                    # features, 
-                    # labels, 
-                    # idx_train, 
-                    # idx_val, 
-                    # idx_test, 
-                    # sens, 
-                    nfeat=features.shape[1],
+    model = NIFTY_GAT(
+                    adj = adj, 
+                    features = features,
+                    labels = labels,
+                    idx_train = idx_train, 
+                    idx_val = idx_val, 
+                    idx_test = idx_test, 
+                    sens = sens, 
+                    sens_idx = sens,
                     num_hidden = num_hidden,
-                    alpha = alpha,
-                    beta = beta,
-                    acc = acc,
+                    num_proj_hidden = num_proj_hidden,
+                    lr = lr,
+                    weight_decay = weight_decay,
                     sim_coeff = sim_coeff, 
-                    lr = lr, 
-                    weight_decay = weight_decay, 
-                    proj_hidden = proj_hidden,
                     )
-    model.fit(adj, features, labels, idx_train, idx_val, idx_test, sens, idx_train)
+    model.fit()
     # Evaluate the model.
 
     (
@@ -116,7 +109,7 @@ def objective(trial):
         F1_sens1,
         SP,
         EO,
-    ) = model.predict(idx_test)
+    ) = model.predict()
     print("THIS IS: ", str(args.dataset))
     return ACC
 # Create an Optuna study object and specify the optimization direction
@@ -140,7 +133,7 @@ best_params = best_trial.params
 best_params["dataset: "] = args.dataset
 best_params["seed: "] = args.seed
 best_params["acc: "] = best_trial.value
-best_params["model: "] = "fairGCN_1"
+best_params["model: "] = "NiftyGAT"
 # Print the best parameters
 print("Best parameters:")
 for key, value in best_params.items():

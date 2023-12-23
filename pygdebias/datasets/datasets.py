@@ -38,6 +38,7 @@ class Dataset(object):
         self.idx_val_ = None
         self.idx_test_ = None
         self.sens_ = None
+        self.sens_idx_ = None
         self.seed_ = seed
         self.root = root
         if not os.path.exists(self.root):
@@ -130,6 +131,9 @@ class Dataset(object):
         else:
             raise ValueError("datatype should be torch.tensor, tf.tensor, or np.array")
 
+    def sens_idx(self):
+        return self.sens_idx_
+    
     def seed(self, datatype: int):
         if self.seed_:
             return self.seed_
@@ -161,14 +165,15 @@ class Nba(Dataset):
     ):
         super(Nba, self).__init__(seed)
         (
-            adj,
-            features,
-            labels,
-            idx_train,
-            idx_val,
-            idx_test,
-            sens,
-            idx_sens_train,
+            adj, 
+            features, 
+            labels, 
+            idx_train, 
+            idx_val, 
+            idx_test, 
+            sens, 
+            idx_sens_train, 
+            sens_idx
         ) = self.load_pokec(
             dataset = "nba",
             sens_attr = "country",
@@ -192,6 +197,7 @@ class Nba(Dataset):
         self.idx_val_ = idx_val
         self.idx_test_ = idx_test
         self.sens_ = sens
+        self.sens_idx_ = -1
 
     def load_pokec(
         self,
@@ -265,6 +271,13 @@ class Nba(Dataset):
         label_idx = np.where(labels >= 0)[0]
         random.shuffle(label_idx)
 
+        # with open("label_idx" + dataset + "_" + str(seed)+ ".pickle", "wb") as handle:
+        #     pickle.dump(label_idx, handle)
+
+        with open("label_idx" + dataset + "_" + str(seed)+ ".pickle", "rb") as handle:
+            label_idx = pickle.load(handle) 
+        # print("label_idx: ", label_idx)
+
         idx_train = label_idx[: min(int(0.5 * len(label_idx)), label_number)]
         idx_val = label_idx[int(0.5 * len(label_idx)) : int(0.75 * len(label_idx))]
         if test_idx:
@@ -281,6 +294,14 @@ class Nba(Dataset):
         idx_sens_train = list(sens_idx - set(idx_val) - set(idx_test))
         random.seed(seed)
         random.shuffle(idx_sens_train)
+
+        # with open("idx_sens_train_" + dataset + "_" + str(seed)+ ".pickle", "wb") as handle:
+        #     pickle.dump(idx_sens_train, handle)
+
+        with open("idx_sens_train_" + dataset + "_" + str(seed)+ ".pickle", "rb") as handle:
+            idx_sens_train = pickle.load(handle) 
+        # print("idx_sens_train: ", idx_sens_train)
+
         idx_sens_train = torch.LongTensor(idx_sens_train[:sens_number])
 
         idx_train = torch.LongTensor(idx_train)
@@ -289,161 +310,9 @@ class Nba(Dataset):
 
         features = torch.cat([features, sens.unsqueeze(-1)], -1)
         # random.shuffle(sens_idx)
-
-        return adj, features, labels, idx_train, idx_val, idx_test, sens, idx_sens_train
-
-class Pokec_z_NO(Dataset): 
-    def __init__(
-        self,
-        dataset_name="pokec_z",
-        predict_attr_specify=None,
-        return_tensor_sparse=True,
-    ):
-        super().__init__()
-        if dataset_name == "pokec_z":
-            dataset = "region_job"
-        elif dataset_name == "pokec_n":
-            dataset = "region_job_2"
-        sens_attr = "region"
-        predict_attr = "I_am_working_in_field"
-        label_number =  1000
-        sens_number = 200
-        seed = 20
-        path = "./dataset/pokec/"
-        test_idx = False
-        
-        (
-            adj,
-            features,
-            labels,
-            idx_train,
-            idx_val,
-            idx_test,
-            sens,
-            idx_sens_train,
-        ) = self.load_pokec(
-            dataset,
-            sens_attr,
-            predict_attr if predict_attr_specify == None else predict_attr_specify,
-            path=path,
-            label_number=label_number,
-            sens_number=sens_number,
-            seed=seed,
-            test_idx=test_idx,
-        )
-
-        # adj=adj.todense(
-        adj = mx_to_torch_sparse_tensor(
-            adj, is_sparse=True, return_tensor_sparse=return_tensor_sparse
-        )
-
-        self.adj_ = adj
-        self.features_ = features
-        self.labels_ = labels
-        self.idx_train_ = idx_train
-        self.idx_val_ = idx_val
-        self.idx_test_ = idx_test
-        self.sens_ = sens
-
-    def load_pokec(
-        self,
-        dataset,
-        sens_attr,
-        predict_attr,
-        path="../dataset/pokec/",
-        label_number=1000,
-        sens_number=500,
-        seed=19,
-        test_idx=False,
-    ):
-        """Load data"""
-
-        self.path_name = "pokec_z"
-        self.url = "https://drive.google.com/u/0/uc?id=1FOYOIdFp6lI9LH5FJAzLhjFCMAxT6wb4&export=download"
-        self.destination = os.path.join(self.root, self.path_name, "pokec_z.zip")
-        if not os.path.exists(os.path.join(self.root, self.path_name)):
-            os.makedirs(os.path.join(self.root, self.path_name))
-        if not os.path.exists(
-            os.path.join(self.root, self.path_name, "region_job.csv")
-        ):
-            gdown.download(self.url, self.destination)
-            with zipfile.ZipFile(self.destination, "r") as zip_ref:
-                zip_ref.extractall(os.path.join(self.root, self.path_name))
-        if not os.path.exists(
-            os.path.join(self.root, self.path_name, "region_job_relationship.txt")
-        ):
-            gdown.download(self.url, self.destination, quiet=False)
-            with zipfile.ZipFile(self.destination, "r") as zip_ref:
-                zip_ref.extractall(os.path.join(self.root, self.path_name))
-
-        idx_features_labels = pd.read_csv(
-            os.path.join(self.root, self.path_name, "region_job.csv")
-        )
-        header = list(idx_features_labels.columns)
-        header.remove("user_id")
-
-        header.remove(sens_attr)
-        # header.remove(predict_attr)
-
-        features = sp.csr_matrix(idx_features_labels[header], dtype=np.float32)
-        labels = idx_features_labels[predict_attr].values
-
-        # build graph
-        idx = np.array(idx_features_labels["user_id"], dtype=np.int64)
-        idx_map = {j: i for i, j in enumerate(idx)}
-        edges_unordered = np.genfromtxt(
-            os.path.join(self.root, self.path_name, "region_job_relationship.txt"),
-            dtype=np.int64,
-        )
-
-        edges = np.array(
-            list(map(idx_map.get, edges_unordered.flatten())), dtype=np.int64
-        ).reshape(edges_unordered.shape)
-
-        adj = sp.coo_matrix(
-            (np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
-            shape=(labels.shape[0], labels.shape[0]),
-            dtype=np.float32,
-        )
-        # build symmetric adjacency matrix
-        adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
-
-        # features = normalize(features)
-        adj = adj + sp.eye(adj.shape[0])
-
-        features = torch.FloatTensor(np.array(features.todense()))
-        labels = torch.LongTensor(labels)
-        # adj = mx_to_torch_sparse_tensor(adj)
-
-        import random
-
-        random.seed(seed)
-        label_idx = np.where(labels >= 0)[0]
-        random.shuffle(label_idx)
-
-        idx_train = label_idx[:min(int(0.5 * len(label_idx)),label_number)]
-        idx_val = label_idx[int(0.5 * len(label_idx)):int(0.75 * len(label_idx))]
-        idx_test = label_idx[int(0.75 * len(label_idx)) :]
-
-        sens = idx_features_labels[sens_attr].values
-
-        sens_idx = set(np.where(sens >= 0)[0])
-        idx_test = np.asarray(list(sens_idx & set(idx_test)))
-        sens = torch.FloatTensor(sens)
-        idx_sens_train = list(sens_idx - set(idx_val) - set(idx_test))
-        random.seed(seed)
-        random.shuffle(idx_sens_train)
-        idx_sens_train = torch.LongTensor(idx_sens_train[:sens_number])
-
-        idx_train = torch.LongTensor(idx_train)
-        idx_val = torch.LongTensor(idx_val)
-        idx_test = torch.LongTensor(idx_test)
-
-        features = torch.cat([features, sens.unsqueeze(-1)], -1)
-        # random.shuffle(sens_idx)
-
-        return adj, features, labels, idx_train, idx_val, idx_test, sens, idx_sens_train
-
+        # sens_idx = sens_idx.long()
+        # print("SENS_IDX: ", sens_idx.dtype)
+        return adj, features, labels, idx_train, idx_val, idx_test, sens, idx_sens_train, sens_idx
 
 class Pokec_z(Dataset):
     def __init__(
@@ -499,10 +368,10 @@ class Pokec_z(Dataset):
         test_idx=False,
     ):
         """Load data"""
-        edges = np.load('/home/joyce/PyG_V2/region_job_1_edges.npy')
-        features = np.load('/home/joyce/PyG_V2/region_job_1_features.npy')
-        labels = np.load('/home/joyce/PyG_V2/region_job_1_labels.npy')
-        sens = np.load('/home/joyce/PyG_V2/region_job_1_sens.npy')
+        edges = np.load('/home/joyce/region_job_1_edges.npy')
+        features = np.load('/home/joyce/region_job_1_features.npy')
+        labels = np.load('/home/joyce/region_job_1_labels.npy')
+        sens = np.load('/home/joyce/region_job_1_sens.npy')
     
         # idx_features_labels = pd.read_csv(
         #     os.path.join(self.root, self.path_name, "region_job.csv")
@@ -586,7 +455,7 @@ class Pokec_z(Dataset):
         sens = torch.FloatTensor(sens)
 
         # idx_sens_train = list(sens_idx - set(idx_val) - set(idx_test))
-        random.seed(seed)
+        # random.seed(seed)
         # random.shuffle(idx_sens_train)
         # idx_sens_train = torch.LongTensor(idx_sens_train[:sens_number])
 
@@ -653,10 +522,10 @@ class Pokec_n(Dataset):
         test_idx=False,
     ):
         """Load data"""
-        edges = np.load('/home/joyce/PyG_V2/region_job_2_2_edges.npy')
-        features = np.load('/home/joyce/PyG_V2/region_job_2_2_features.npy')
-        labels = np.load('/home/joyce/PyG_V2/region_job_2_2_labels.npy')
-        sens = np.load('/home/joyce/PyG_V2/region_job_2_2_sens.npy')
+        edges = np.load('/home/joyce/region_job_2_2_edges.npy')
+        features = np.load('/home/joyce/region_job_2_2_features.npy')
+        labels = np.load('/home/joyce/region_job_2_2_labels.npy')
+        sens = np.load('/home/joyce/region_job_2_2_sens.npy')
 
         # self.path_name = "pokec_n"
         # self.destination = os.path.join(self.root, self.path_name, "pokec_n.zip")
@@ -730,10 +599,10 @@ class Pokec_n(Dataset):
         sens_idx = set(np.where(sens >= 0)[0])
         # idx_test = np.asarray(list(sens_idx & set(idx_test)))
         # sens = torch.FloatTensor(sens)
-        idx_sens_train = list(sens_idx - set(idx_val) - set(idx_test))
-        random.seed(seed)
-        random.shuffle(idx_sens_train)
-        idx_sens_train = torch.LongTensor(idx_sens_train[:sens_number])
+        # idx_sens_train = list(sens_idx - set(idx_val) - set(idx_test))
+        # random.seed(seed)
+        # random.shuffle(idx_sens_train)
+        # idx_sens_train = torch.LongTensor(idx_sens_train[:sens_number])
         # features = torch.cat([features, sens.unsqueeze(-1)], -1)
         # features = torch.FloatTensor(np.array(features))
         # labels = torch.LongTensor(labels)
@@ -899,7 +768,6 @@ class Income(Dataset):
             sens_idx,
         ) = self.load_income("income", seed)
         seed = seed
-        # print("JOY SEED:", seed)
         node_num = features.shape[0]
         self.seed = seed
         idx_train = torch.LongTensor(idx_train)
@@ -968,11 +836,11 @@ class Income(Dataset):
         features = torch.FloatTensor(np.array(features.todense()))
         labels = torch.LongTensor(labels)
 
-        import random
-        label_idx_0 = np.where(labels == 0)[0]
-        label_idx_1 = np.where(labels == 1)[0]
-        random.shuffle(label_idx_0)
-        random.shuffle(label_idx_1)
+        # import random
+        # label_idx_0 = np.where(labels == 0)[0]
+        # label_idx_1 = np.where(labels == 1)[0]
+        # random.shuffle(label_idx_0)
+        # random.shuffle(label_idx_1)
         # /home/joyce/PyG_V2/pygdebias/datasets/label_idx_0_1_1.pickle
         print("seed: ", seed)
         # with open("label_idx_0_" + dataset + "_" + str(seed) + ".pickle", "wb") as handle:
@@ -1006,115 +874,3 @@ class Income(Dataset):
         idx_test = torch.LongTensor(idx_test)
 
         return adj, features, labels, edges, sens, idx_train, idx_val, idx_test, 0
-
-
-# class BIND(Dataset):
-#     def __init__(self):
-#         super(BIND, self).__init__()
-#         (
-#             adj,
-#             features,
-#             labels,
-#             edges,
-#             sens,
-#             idx_train,
-#             idx_val,
-#             idx_test,
-#             sens_idx,
-#         ) = self.load_income("income")
-
-#         node_num = features.shape[0]
-
-#         idx_train = torch.LongTensor(idx_train)
-#         idx_val = torch.LongTensor(idx_val)
-#         idx_test = torch.LongTensor(idx_test)
-#         labels = torch.LongTensor(labels)
-#         features = self.feature_norm(features)
-#         adj = mx_to_torch_sparse_tensor(adj, is_sparse=True)
-#         self.adj_ = adj
-#         self.features_ = features
-#         self.labels_ = labels
-#         self.idx_train_ = idx_train
-#         self.idx_val_ = idx_val
-#         self.idx_test_ = idx_test
-#         self.sens_ = sens
-#         self.sens_idx_ = sens_idx
-
-#     def feature_norm(self, features):
-#         min_values = features.min(axis=0)[0]
-#         max_values = features.max(axis=0)[0]
-#         return 2 * (features - min_values).div(max_values - min_values) - 1
-
-#     def load_income(
-#         self,
-#         dataset,
-#         sens_attr="race",
-#         predict_attr="income",
-#         path="empty",
-#         label_number=1000,
-#     ):
-#         print('Loading {} dataset from {}'.format(dataset, path))
-#         self.path_name = "income"
-#         idx_features_labels = pd.read_csv(
-#             os.path.join(self.root, self.path_name, "{}.csv".format(dataset))
-#         )
-#         header = list(idx_features_labels.columns)
-#         header.remove(predict_attr)
-
-#         # build relationship
-
-#         edges_unordered = np.genfromtxt(
-#             os.path.join(self.root, self.path_name, f"{dataset}_edges.txt")
-#         ).astype("int")
-
-#         features = sp.csr_matrix(idx_features_labels[header], dtype=np.float32)
-#         labels = idx_features_labels[predict_attr].values
-
-#         idx = np.arange(features.shape[0])
-#         idx_map = {j: i for i, j in enumerate(idx)}
-#         edges = np.array(
-#             list(map(idx_map.get, edges_unordered.flatten())), dtype=int
-#         ).reshape(edges_unordered.shape)
-
-#         adj = sp.coo_matrix(
-#             (np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
-#             shape=(labels.shape[0], labels.shape[0]),
-#             dtype=np.float32,
-#         )
-
-#         # build symmetric adjacency matrix
-#         adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
-
-#         # features = normalize(features)
-#         adj = adj + sp.eye(adj.shape[0])
-
-#         features = torch.FloatTensor(np.array(features.todense()))
-#         labels = torch.LongTensor(labels)
-
-#         import random
-
-#         random.seed(5)
-#         label_idx_0 = np.where(labels == 0)[0]
-#         label_idx_1 = np.where(labels == 1)[0]
-#         random.shuffle(label_idx_0)
-#         random.shuffle(label_idx_1)
-#         idx_train = np.append(
-#             label_idx_0[: min(int(0.5 * len(label_idx_0)), label_number // 2)],
-#             label_idx_1[: min(int(0.5 * len(label_idx_1)), label_number // 2)],
-#         )
-#         idx_val = np.append(
-#             label_idx_0[int(0.5 * len(label_idx_0)) : int(0.75 * len(label_idx_0))],
-#             label_idx_1[int(0.5 * len(label_idx_1)) : int(0.75 * len(label_idx_1))],
-#         )
-#         idx_test = np.append(
-#             label_idx_0[int(0.75 * len(label_idx_0)) :],
-#             label_idx_1[int(0.75 * len(label_idx_1)) :],
-#         )
-
-#         sens = idx_features_labels[sens_attr].values.astype(int)
-#         sens = torch.FloatTensor(sens)
-#         idx_train = torch.LongTensor(idx_train)
-#         idx_val = torch.LongTensor(idx_val)
-#         idx_test = torch.LongTensor(idx_test)
-
-#         return adj, features, labels, edges, sens, idx_train, idx_val, idx_test, 0

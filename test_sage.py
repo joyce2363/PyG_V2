@@ -5,20 +5,13 @@ from pygdebias.debiasing import GNN
 from pygdebias.datasets import Income, Pokec_z, Pokec_n, Bail, Nba
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', type=str, default="nba", help='One dataset from income, bail, pokec1, and pokec2.')
-parser.add_argument('--num_hidden', nargs='+', type=int, default=[16])
-parser.add_argument('--num_proj_hidden', nargs='+', type=int, default=[16])
-parser.add_argument('--lr', nargs='+', type=float, default=[0.01])
-parser.add_argument('--weight_decay', nargs='+', type=float, default=[1e-5])
-parser.add_argument('--sim_coeff', nargs='+', type=float, default=[0.5] )
+parser.add_argument('--dataset', type=str, default="income", help='One dataset from income, bail, pokec1, and pokec2.')
 args = parser.parse_args()
 
 # Available choices: 'Credit', 'German', 'Facebook', 'Pokec_z', 'Pokec_n', 'Nba', 'Twitter', 'Google', 'LCC', 'LCC_small', 'Cora', 'Citeseer', 'Amazon', 'Yelp', 'Epinion', 'Ciao', 'Dblp', 'Filmtrust', 'Lastfm', 'Ml-100k', 'Ml-1m', 'Ml-20m', 'Oklahoma', 'UNC', 'Bail'.
-seed = 0
-curr_dict = {} 
-print(zip(args.num_hidden, args.num_proj_hidden, args.lr, args.weight_decay, args.sim_coeff))
+curr_dict = {}
 
-for i in range (1,2): 
+for i in range (1,6): 
     seed = i 
     if seed == 1: 
         accuracy = []
@@ -26,6 +19,7 @@ for i in range (1,2):
         equal_opportunity = []
     if args.dataset == "income": 
         income = Income(seed)
+        # Income.load_income(dataset = "income", seed=seed)
         adj, features, idx_train, idx_val, idx_test, labels, sens = (
             income.adj(),
             income.features(),
@@ -34,8 +28,9 @@ for i in range (1,2):
             income.idx_test(),
             income.labels(),
             income.sens(),
+            # income.seed(seed), 
         )
-        print("LOADING INCOME")
+        print("INCOME")
     elif args.dataset == "pokec_z":
         pokec_z = Pokec_z(seed)
         # Income.load_income(dataset = "income", seed=seed)
@@ -89,42 +84,19 @@ for i in range (1,2):
             # income.seed(seed), 
         )
         print("nba")
-    # print("idx_train: ", len(idx_train))
-    # print("idx_val: ", len(idx_val))
-    # print("idx_test: ", len(idx_test))
-    # print("len of labels: ", len(labels))
-    # print("SIM_COEFF: ", args.sim_coeff[seed-1])
-    # for num_hidden, num_proj_hidden, lr, weight_decay, sim_coeff in zip(args.num_hidden, args.num_proj_hidden, args.lr, args.weight_decay, args.sim_coeff):
-    #     model = GNN(adj, 
-    #                     features, 
-    #                     labels, 
-    #                     idx_train, 
-    #                     idx_val, 
-    #                     idx_test, 
-    #                     sens, 
-    #                     idx_train,
-    #                     num_hidden = num_hidden,  
-    #                     num_proj_hidden = num_proj_hidden,
-    #                     lr = lr,
-    #                     weight_decay = weight_decay, 
-    #                     sim_coeff = sim_coeff
-    #                     ) #features.shape[1]
-    print("SEED: ", seed)
-    model = GNN(
-        adj, 
-        features, 
-        labels, 
-        idx_train, 
-        idx_val, 
-        idx_test, 
-        sens, 
-        idx_train,
-        num_hidden = args.num_hidden[seed-1],  
-        num_proj_hidden = args.num_proj_hidden[seed-1],
-        lr = args.lr[seed-1],
-        weight_decay = args.weight_decay[seed-1], 
-        sim_coeff = args.sim_coeff[seed-1]
-    )
+    print("idx_train: ", len(idx_train))
+    print("idx_val: ", len(idx_val))
+    print("idx_test: ", len(idx_test))
+    print("len of labels: ", len(labels))
+    model = GNN(adj, 
+                    features, 
+                    labels, 
+                    idx_train, 
+                    idx_val, 
+                    idx_test, 
+                    sens, 
+                    idx_train) #features.shape[1]
+
         # Train the model.
     model.fit()
 
@@ -163,7 +135,7 @@ for i in range (1,2):
     print("F1_sens1: ", F1_sens1)
     print("SP: ", SP)
     print("EO:", EO)
-curr_dict['Model'] = 'GAT'
+curr_dict['Model'] = 'SAGE'
 
 if args.dataset == 'pokec_z': 
     curr_dict['Dataset'] = str('pokec1')

@@ -38,6 +38,7 @@ class GCN(nn.Module):
         x = self.gc1(x, edge_index)
         return x
 
+
 class SAGE(nn.Module):
     def __init__(self, nfeat, nhid, dropout=0.5):
         super(SAGE, self).__init__()
@@ -68,6 +69,31 @@ class SAGE(nn.Module):
         x = self.transition(x)
         x = self.conv2(x, edge_index)
         return x
+
+class GAT(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5, nheads=1): 
+        super(GAT, self).__init__()
+
+        self.conv1 = GATConv(nfeat, nhid, heads=nheads, dropout=dropout)
+        self.conv1.att = None 
+        self.transition = nn.Sequential(
+            nn.ReLU(), 
+            nn.BatchNorm1d(nhid * nheads), 
+            nn.Dropout(p=dropout)
+        )
+        for m in self.modules(): 
+            self.weights_init(m)
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
+
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index)
+        x = x.flatten(start_dim=1)  # Flatten node features across heads
+        x = self.transition(x)
+        return x 
     
 class Encoder_DGI(nn.Module):
     def __init__(self, nfeat, nhid):
@@ -90,16 +116,18 @@ class Encoder_DGI(nn.Module):
         return x
 
 
+
 class Encoder(torch.nn.Module):
     def __init__(self, in_channels: int, out_channels: int, 
-                base_model='gcn', k: int = 2):
+                base_model='gat', k: int = 2):
         super(Encoder, self).__init__()
         self.base_model = base_model
         if self.base_model == 'gcn':
             self.conv = GCN(in_channels, out_channels)
-        elif self.base_model == 'sage': 
+        elif self.base_model == 'sage':
             self.conv = SAGE(in_channels, out_channels)
-
+        elif self.base_model == 'gat': 
+            self.conv = GAT(in_channels, out_channels)
 
         for m in self.modules():
             self.weights_init(m)
@@ -114,11 +142,29 @@ class Encoder(torch.nn.Module):
         x = self.conv(x, edge_index)
         return x
 
-
-
-class NIFTY(torch.nn.Module):
-    def __init__(self, adj, features, labels, idx_train, idx_val, idx_test, sens, sens_idx=-1, num_hidden=16, num_proj_hidden=16, lr=0.001, weight_decay=1e-5, drop_edge_rate_1=0.1, drop_edge_rate_2=0.1, drop_feature_rate_1=0.1, drop_feature_rate_2=0.1, encoder="gcn", sim_coeff=0.5, nclass=1, device="cuda"):
-        super(NIFTY, self).__init__()
+class NIFTY_GAT(torch.nn.Module):
+    def __init__(self, 
+                 adj, 
+                 features, 
+                 labels, 
+                 idx_train, 
+                 idx_val, 
+                 idx_test, 
+                 sens, 
+                 num_hidden, 
+                 num_proj_hidden, 
+                 lr, 
+                 weight_decay, 
+                 sim_coeff, 
+                 sens_idx = -1, 
+                 drop_edge_rate_1=0.1, 
+                 drop_edge_rate_2=0.1, 
+                 drop_feature_rate_1=0.1, 
+                 drop_feature_rate_2=0.1, 
+                 encoder="gat", 
+                 nclass=1, 
+                 device="cuda"):
+        super(NIFTY_GAT, self).__init__()
 
         self.device = device
 
@@ -132,8 +178,8 @@ class NIFTY(torch.nn.Module):
                     # nclass=num_class).to(device)
         self.val_edge_index_1 = dropout_adj(self.edge_index.to(device), p=drop_edge_rate_1)[0]
         self.val_edge_index_2 = dropout_adj(self.edge_index.to(device), p=drop_edge_rate_2)[0]
-        self.val_x_1 = drop_feature(features.to(device), drop_feature_rate_1, sens_idx, sens_flag=False)
-        self.val_x_2 = drop_feature(features.to(device), drop_feature_rate_2, sens_idx)
+        self.val_x_1 = drop_feature(features.to(device), drop_feature_rate_1, sens_idx.long(), sens_flag=False)
+        self.val_x_2 = drop_feature(features.to(device), drop_feature_rate_2, sens_idx.long())
 
         self.sim_coeff = sim_coeff
         #self.encoder = encoder
@@ -144,7 +190,7 @@ class NIFTY(torch.nn.Module):
         self.idx_val = idx_val
         self.idx_test = idx_test
         self.sens = sens
-        self.sens_idx = sens_idx
+        self.sens_idx = sens_idx.long()
         self.drop_edge_rate_1=self.drop_edge_rate_2=0
         self.drop_feature_rate_1=self.drop_feature_rate_2=0
 
@@ -183,6 +229,10 @@ class NIFTY(torch.nn.Module):
         self.features = features.to(device)
         self.edge_index = self.edge_index.to(device)
         self.labels = self.labels.to(device)
+
+
+
+
 
     def weights_init(self, m):
         if isinstance(m, nn.Linear):
@@ -337,7 +387,7 @@ class NIFTY(torch.nn.Module):
                 self.val_loss=val_loss.item()
 
                 best_loss = val_loss
-                torch.save(self.state_dict(), f'weights_GNN_{self.encoder}.pt')
+                torch.save(self.state_dict(), f'weights_GNN_{"gat"}.pt')
 
 
 
@@ -418,12 +468,12 @@ class NIFTY(torch.nn.Module):
 
                 print(f'{epoch} | {val_s_loss:.4f} | {val_c_loss:.4f}')
                 best_loss = val_c_loss + val_s_loss
-                torch.save(self.state_dict(), f'weights_ssf_{self.encoder}.pt')
+                torch.save(self.state_dict(), f'weights_ssf_{"gat"}.pt')
 
 
     def predict_GNN(self):
 
-        self.load_state_dict(torch.load(f'weights_GNN_{self.encoder}.pt'))
+        self.load_state_dict(torch.load(f'weights_GNN_{"gat"}.pt'))
         self.eval()
         emb = self.forward(self.features.to(self.device), self.edge_index.to(self.device))
         output = self.forwarding_predict(emb)
@@ -452,12 +502,14 @@ class NIFTY(torch.nn.Module):
 
     def predict(self):
 
-        self.load_state_dict(torch.load(f'weights_ssf_{self.encoder}.pt'))
+        self.load_state_dict(torch.load(f'weights_ssf_{"gat"}.pt'))
         self.eval()
         emb = self.forward(self.features.to(self.device), self.edge_index.to(self.device))
         output = self.forwarding_predict(emb)
         counter_features = self.features.clone()
-        counter_features[:, self.sens_idx] = 1 - counter_features[:, self.sens_idx]
+        # sens_idx_long = self.sens_idx.long()
+        sens_idx = self.sens_idx
+        counter_features[:, sens_idx] = 1 - counter_features[:, sens_idx]
         counter_output = self.forwarding_predict(self.forward(counter_features.to(self.device), self.edge_index.to(self.device)))
         noisy_features = self.features.clone() + torch.ones(self.features.shape).normal_(0, 1).to(self.device)
         noisy_output = self.forwarding_predict(self.forward(noisy_features.to(self.device), self.edge_index.to(self.device)))
@@ -545,6 +597,16 @@ def drop_feature(x, drop_prob, sens_idx, sens_flag=True):
         device=x.device).uniform_(0, 1) < drop_prob
 
     x = x.clone()
+    # for idx in sens_idx: 
+    #     new_sens_idx = torch.tensor(list(idx), dtype=torch.long)
+    # new_sens_idx = torch.tensor(list(sens_idx), dtype=torch.long)
+    # print("SENS_IDX TYPE: ", sens_idx)
+    # sens_idx_long = sens_idx.long()
+
+    # print("sens_idx:", sens_idx)
+    # print("DROP_MASK TYPE:", drop_mask.dtype)
+    # print("DROP_MASK: ", drop_mask)
+    # for idx in sens_idx:
     drop_mask[sens_idx] = False
 
     x[:, drop_mask] += torch.ones(1).normal_(0, 1).to(x.device)
@@ -552,5 +614,4 @@ def drop_feature(x, drop_prob, sens_idx, sens_flag=True):
     # Flip sensitive attribute
     if sens_flag:
         x[:, sens_idx] = 1-x[:, sens_idx]
-
     return x

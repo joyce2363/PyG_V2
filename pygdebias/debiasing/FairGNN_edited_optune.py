@@ -6,37 +6,58 @@ import argparse
 import time
 import torch
 from tqdm import tqdm
-from torch_geometric.nn import GCNConv
-# class GCN(nn.Module):
-#     def __init__(self, nfeat, nhid, nclass, dropout):
-#         super(GCN, self).__init__()
-#         self.body = GCN_Body(nfeat,nhid,dropout)
-#         self.fc = nn.Linear(nhid,nclass)
+from torch_geometric.nn import GCNConv, GATConv, GINConv, SAGEConv, DeepGraphInfomax, JumpingKnowledge
+import scipy.sparse as sp
+from torch_geometric.utils import dropout_adj, convert
 
-#     def forward(self, g, x):
-#         x = self.body(g,x)
+# class GCN(nn.Module):
+#     def __init__(self, nfeat, nhid, nclass, dropout=0.5):
+#         super(GCN, self).__init__()
+#         # self.gc1 = spectral_norm(GCNConv(nfeat, nhid).lin)
+#         self.gc1 = GCNConv(nfeat, nhid)
+#         # self.gc2 = GCNConv(nhid, nhid)
+#         # self.dropout = nn.Dropout(dropout)
+#         self.fc = nn.Linear(nhid, nclass) #nhid, nhid
+
+#     def forward(self, edge_index, x):
+#         # x = F.relu(self.gc1(x, edge_index))
+#         # x = self.dropout(x)
+#         x = self.gc1(x, edge_index)
+#         # x = self.gc2(x, edge_index)
 #         x = self.fc(x)
 #         return x
 
+class SAGE(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5):
+        super(SAGE, self).__init__()
 
+        # Implemented spectral_norm in the sage main file
+        # ~/anaconda3/envs/PYTORCH/lib/python3.7/site-packages/torch_geometric/nn/conv/sage_conv.py
+        self.conv1 = SAGEConv(nfeat, nhid, normalize=True)
+        self.conv1.aggr = 'mean'
+        self.transition = nn.Sequential(
+            nn.ReLU(),
+            nn.BatchNorm1d(nhid),
+            nn.Dropout(p=dropout)
+        )
+        self.conv2 = SAGEConv(nhid, nhid, normalize=True)
+        self.conv2.aggr = 'mean'
 
-class GCN(nn.Module):
-    def __init__(self, nfeat, nhid, nclass, dropout=0.5):
-        super(GCN, self).__init__()
-        # self.gc1 = spectral_norm(GCNConv(nfeat, nhid).lin)
-        self.gc1 = GCNConv(nfeat, nhid)
-        # self.gc2 = GCNConv(nhid, nhid)
-        # self.dropout = nn.Dropout(dropout)
-        self.fc = nn.Linear(nhid, nclass) #nhid, nhid
+        for m in self.modules():
+            self.weights_init(m)
+        
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
 
-    def forward(self, edge_index, x):
-        # x = F.relu(self.gc1(x, edge_index))
-        # x = self.dropout(x)
-        x = self.gc1(x, edge_index)
-        # x = self.gc2(x, edge_index)
-        x = self.fc(x)
+    def forward(self, x, edge_index):
+        edge_index = edge_index.long()
+        x = self.conv1(x, edge_index)
+        x = self.transition(x)
+        x = self.conv2(x, edge_index)
         return x
-
 
 def accuracy(output, labels):
     output = output.squeeze()
@@ -47,7 +68,7 @@ def accuracy(output, labels):
 
 
 def get_model(nfeat, args):
-    model = GCN(nfeat, nhid=args.num_hidden, nclass=args.num_hidden, dropout=args.dropout)
+    model = SAGE(nfeat, nhid=args.num_hidden)
 
     return model
 
@@ -55,17 +76,17 @@ def get_model(nfeat, args):
 class FairGNN_edited_optune(nn.Module):
     def __init__(
         self, 
+        adj, 
+        features, 
+        labels, 
+        idx_train, 
+        idx_val, 
+        idx_test, 
+        sens, 
         nfeat, 
-        lr, 
-        weight_decay,
-        proj_hidden,
-        hidden_size,
         num_hidden,
         alpha,
         beta,
-        sim_coeff,
-        n_order, 
-        subgraph_size,
         acc,   
         epoch=2000
     ):
@@ -85,18 +106,18 @@ class FairGNN_edited_optune(nn.Module):
             help="Number of epochs to train.",
         )
         parser.add_argument(
-            "--lr", type=float, default=lr, help="Initial learning rate."
+            "--lr", type=float, default=0.001, help="Initial learning rate."
         )
         parser.add_argument(
             "--weight_decay",
             type=float,
-            default=weight_decay,
+            default=1e-5,
             help="Weight decay (L2 loss on parameters).",
         )
         parser.add_argument(
             "--proj_hidden",
             type=int,
-            default = proj_hidden, #og 16
+            default = 16, #og 16
             help="Number of hidden units in the projection layer of encoder.",
         )
         parser.add_argument(
@@ -108,29 +129,29 @@ class FairGNN_edited_optune(nn.Module):
         parser.add_argument(
             "--sim_coeff",
             type=float,
-            default=sim_coeff,
+            default=0.6,
             help="regularization similarity",
         )
         parser.add_argument(
             "--dataset",
             type=str,
             default="pokec_z",
-            choices=["synthetic", "bail", "credit"],
+            choices=["synthetic", "bail", "credit", "income", "pokec_n", "nba"],
         )
         parser.add_argument(
             "--encoder",
             type=str,
-            default="gcn",
+            default="sage",
             choices=["gcn", "gin", "sage", "infomax", "jk"],
         )
         parser.add_argument("--batch_size", type=int, help="batch size", default=100)
         parser.add_argument(
-            "--subgraph_size", type=int, help="subgraph size", default=subgraph_size
+            "--subgraph_size", type=int, help="subgraph size", default=30
         )
         parser.add_argument(
-            "--n_order", type=int, help="order of neighbor nodes", default=n_order
+            "--n_order", type=int, help="order of neighbor nodes", default=10
         )
-        parser.add_argument("--hidden_size", type=int, help="hidden size", default=hidden_size)
+        parser.add_argument("--hidden_size", type=int, help="hidden size", default=1024)
         parser.add_argument(
             "--experiment_type",
             type=str,
@@ -147,7 +168,7 @@ class FairGNN_edited_optune(nn.Module):
         nhid = args.num_hidden
         dropout = args.dropout
         # self.estimator = GCN(nfeat, 1, dropout) #nhid instead of 1
-        self.estimator = GCN(nfeat, nhid, 1, dropout)
+        self.estimator = SAGE(nfeat, nhid, dropout)
         self.GNN = get_model(nfeat, args)
         self.classifier = nn.Linear(nhid, 1)
         self.adv = nn.Linear(nhid, 1)
@@ -169,12 +190,8 @@ class FairGNN_edited_optune(nn.Module):
 
         self.G_loss = 0
         self.A_loss = 0
-
+        self.edge_index = convert.from_scipy_sparse_matrix(sp.coo_matrix(adj.to_dense().numpy()))[0]
     def fair_metric(self, sens, labels, output, idx):
-        # print("sens: ", sens)
-        # print("labels: ", labels)
-        # print("output: ", output)
-        # print("idx: ", idx)
         val_y = labels[idx].cpu().numpy()
         idx_s0 = sens.cpu().numpy()[idx.cpu().numpy()] == 0
         idx_s1 = sens.cpu().numpy()[idx.cpu().numpy()] == 1
@@ -183,13 +200,6 @@ class FairGNN_edited_optune(nn.Module):
         idx_s1_y1 = np.bitwise_and(idx_s1, val_y == 1)
 
         pred_y = (output[idx].squeeze() > 0).type_as(labels).cpu().numpy()
-        # print("output[idx] : ", output[idx])
-        # print("pred_y :", pred_y)
-        # print("len(pred_y[idx_s0]) :", len(pred_y[idx_s0]))
-        # print("sum(pred_y[idx_s0]) :", sum(pred_y[idx_s0]))
-        # print("sum(idx_s0): ", sum(idx_s0))
-        # print("sum(pred_y[idx_s1]):", sum(pred_y[idx_s1]))
-        # print("sum(idx_s1): ", sum(idx_s1))
         labels = "I_am_working_in_field"
         parity = abs(
             sum(pred_y[idx_s0]) / sum(idx_s0) - sum(pred_y[idx_s1]) / sum(idx_s1)
@@ -304,6 +314,7 @@ class FairGNN_edited_optune(nn.Module):
         self.edge_index = (
             torch.tensor(g.to_dense().nonzero(), dtype=torch.long).t().cuda()
         )
+
         self.val_loss = 0
         for epoch in tqdm(range(args.epochs)):
             t = time.time()
@@ -390,6 +401,7 @@ class FairGNN_edited_optune(nn.Module):
 
     def predict_(self, idx_test):
         self.eval()
+        self.edge_index = self.edge_index.long()
         output, s = self.forward(self.edge_index, self.x)
 
         output = (output > 0).long().detach().cpu().numpy()

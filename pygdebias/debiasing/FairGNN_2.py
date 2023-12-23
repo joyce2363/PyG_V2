@@ -1,44 +1,193 @@
-import torch.nn as nn
-import numpy as np
 
-from sklearn.metrics import accuracy_score, roc_auc_score, recall_score, f1_score
-import argparse
-import time
 import torch
-from tqdm import tqdm
-from torch_geometric.nn import GCNConv
+import numpy as np
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.nn import GCNConv, GATConv, GINConv, SAGEConv, DeepGraphInfomax, JumpingKnowledge
+
+from sklearn.metrics import accuracy_score,roc_auc_score,recall_score,f1_score
+from torch.nn.utils import spectral_norm
+from torch_geometric.utils import dropout_adj, convert
+
+import torch.nn.functional as F
+import torch.optim as optim
+
+import time
+import argparse
+import numpy as np
+import scipy.sparse as sp
+
+class Classifier(nn.Module):
+    def __init__(self, ft_in, nb_classes):
+        super(Classifier, self).__init__()
+
+        # Classifier projector
+        self.fc1 = spectral_norm(nn.Linear(ft_in, nb_classes))
+
+    def forward(self, seq):
+        ret = self.fc1(seq)
+        return ret
 
 
 class GCN(nn.Module):
     def __init__(self, nfeat, nhid, dropout=0.5):
         super(GCN, self).__init__()
-        # self.gc1 = spectral_norm(GCNConv(nfeat, nhid).lin)
         self.gc1 = GCNConv(nfeat, nhid)
 
-    def forward(self, edge_index, x):
+    def forward(self, x, edge_index):
         x = self.gc1(x, edge_index)
         return x
 
 
-def accuracy(output, labels):
-    output = output.squeeze()
-    preds = (output > 0).type_as(labels)
-    correct = preds.eq(labels).double()
-    correct = correct.sum()
-    return correct / len(labels)
+class GIN(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5):
+        super(GIN, self).__init__()
+
+        self.mlp1 = nn.Sequential(
+            spectral_norm(nn.Linear(nfeat, nhid)),
+            nn.ReLU(),
+            nn.BatchNorm1d(nhid),
+            spectral_norm(nn.Linear(nhid, nhid)),
+        )
+        self.conv1 = GINConv(self.mlp1)
+
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index)
+        return x
 
 
-def get_model(nfeat, args):
-    model = GCN(nfeat, nhid=args.num_hidden, dropout=args.dropout)
+class JK(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5):
+        super(JK, self).__init__()
+        self.conv1 = spectral_norm(GCNConv(nfeat, nhid))
+        self.convx= spectral_norm(GCNConv(nhid, nhid))
+        self.jk = JumpingKnowledge(mode='max')
+        self.transition = nn.Sequential(
+            nn.ReLU(),
+        )
 
-    return model
+        for m in self.modules():
+            self.weights_init(m)
+
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
+
+    def forward(self, x, edge_index):
+        xs = []
+        x = self.conv1(x, edge_index)
+        x = self.transition(x)
+        xs.append(x)
+        for _ in range(1):
+            x = self.convx(x, edge_index)
+            x = self.transition(x)
+            xs.append(x)
+        x = self.jk(xs)
+        return x
 
 
-class FairGNN(nn.Module):
+class SAGE(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5):
+        super(SAGE, self).__init__()
+
+        # Implemented spectral_norm in the sage main file
+        # ~/anaconda3/envs/PYTORCH/lib/python3.7/site-packages/torch_geometric/nn/conv/sage_conv.py
+        self.conv1 = SAGEConv(nfeat, nhid, normalize=True)
+        self.conv1.aggr = 'mean'
+        self.transition = nn.Sequential(
+            nn.ReLU(),
+            nn.BatchNorm1d(nhid),
+            nn.Dropout(p=dropout)
+        )
+        self.conv2 = SAGEConv(nhid, nhid, normalize=True)
+        self.conv2.aggr = 'mean'
+
+        for m in self.modules():
+            self.weights_init(m)
+
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
+
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index)
+        x = self.transition(x)
+        x = self.conv2(x, edge_index)
+        return x
+
+
+class Encoder_DGI(nn.Module):
+    def __init__(self, nfeat, nhid):
+        super(Encoder_DGI, self).__init__()
+        self.hidden_ch = nhid
+        self.conv = spectral_norm(GCNConv(nfeat, self.hidden_ch))
+        self.activation = nn.PReLU()
+
+    def corruption(self, x, edge_index):
+        # corrupted features are obtained by row-wise shuffling of the original features
+        # corrupted graph consists of the same nodes but located in different places
+        return x[torch.randperm(x.size(0))], edge_index
+
+    def summary(self, z, *args, **kwargs):
+        return torch.sigmoid(z.mean(dim=0))
+
+    def forward(self, x, edge_index):
+        x = self.conv(x, edge_index)
+        x = self.activation(x)
+        return x
+
+
+class GraphInfoMax(nn.Module):
+    def __init__(self, enc_dgi):
+        super(GraphInfoMax, self).__init__()
+        self.dgi_model = DeepGraphInfomax(enc_dgi.hidden_ch, enc_dgi, enc_dgi.summary, enc_dgi.corruption)
+
+    def forward(self, x, edge_index):
+        pos_z, neg_z, summary = self.dgi_model(x, edge_index)
+        return pos_z
+
+
+class Encoder(torch.nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, 
+                base_model='gcn', k: int = 2):
+        super(Encoder, self).__init__()
+        self.base_model = base_model
+        if self.base_model == 'gcn':
+            self.conv = GCN(in_channels, out_channels)
+        elif self.base_model == 'gin':
+            self.conv = GIN(in_channels, out_channels)
+        elif self.base_model == 'sage':
+            self.conv = SAGE(in_channels, out_channels)
+        elif self.base_model == 'infomax':
+            enc_dgi = Encoder_DGI(nfeat=in_channels, nhid=out_channels)
+            self.conv = GraphInfoMax(enc_dgi=enc_dgi)
+        elif self.base_model == 'jk':
+            self.conv = JK(in_channels, out_channels)
+
+        for m in self.modules():
+            self.weights_init(m)
+
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
+
+    def forward(self, x: torch.Tensor, edge_index: torch.Tensor):
+        x = self.conv(x, edge_index)
+        return x
+
+class FairGNN_2(nn.Module):
     def __init__(
-        self, nfeat, num_hidden, alpha, beta, acc, sim_coeff, lr, weight_decay, proj_hidden, n_order=10, subgraph_size=30, epoch=2000
+        self, nfeat, num_hidden, alpha, beta, acc, 
+        sim_coeff, lr, weight_decay, proj_hidden,
+        n_order=10, subgraph_size=30, epoch=2000
     ):
-        super(FairGNN, self).__init__()
+        super(FairGNN_2, self).__init__()
 
         parser = argparse.ArgumentParser()
         parser.add_argument(
@@ -47,31 +196,49 @@ class FairGNN(nn.Module):
             default=False,
             help="Disables CUDA training.",
         )
-        parser.add_argument("--seed", type=int, default=1, help="Random seed.")
         parser.add_argument(
             "--epochs",
             type=int,
-            default=epoch,  # 1000
+            default= epoch,  # 1000
             help="Number of epochs to train.",
         )
-
+        parser.add_argument(
+            "--lr", type=float, default=lr, help="Initial learning rate."
+        )
+        parser.add_argument(
+            "--weight_decay",
+            type=float,
+            default=weight_decay,
+            help="Weight decay (L2 loss on parameters).",
+        )
+        parser.add_argument(
+            "--proj_hidden",
+            type=int,
+            default=proj_hidden, #og 16
+            help="Number of hidden units in the projection layer of encoder.",
+        )
         parser.add_argument(
             "--dropout",
             type=float,
             default=0.5,
             help="Dropout rate (1 - keep probability).",
         )
-
+        parser.add_argument(
+            "--sim_coeff",
+            type=float,
+            default=sim_coeff,
+            help="regularization similarity",
+        )
         parser.add_argument(
             "--dataset",
             type=str,
-            default="synthetic",
-            choices=["synthetic", "bail", "credit", "pokec_n", "pokec_z"],
+            default="pokec_z",
+            choices=["synthetic", "bail", "credit", "income", "nba", "pokec_z", "pokec_n", "bail"],
         )
         parser.add_argument(
             "--encoder",
             type=str,
-            default="sage",
+            default="gcn",
             choices=["gcn", "gin", "sage", "infomax", "jk"],
         )
         parser.add_argument("--batch_size", type=int, help="batch size", default=100)
@@ -90,15 +257,15 @@ class FairGNN(nn.Module):
         )  # train, cf, test
 
         args = parser.parse_known_args()[0]
-        args.num_hidden = num_hidden
+        args.num_hidden = num_hidden #64 for pokec_z
         args.alpha = alpha
         args.beta = beta
         args.acc = acc
-        args.lr = lr
-        args.weight_decay = weight_decay
+
         nhid = args.num_hidden
         dropout = args.dropout
-        self.estimator = GCN(nfeat, 1, dropout)
+        # self.estimator = GCN(nfeat, 1, dropout) #nhid instead of 1
+        self.estimator = GCN(nfeat, nhid, 1, dropout)
         self.GNN = get_model(nfeat, args)
         self.classifier = nn.Linear(nhid, 1)
         self.adv = nn.Linear(nhid, 1)
@@ -122,6 +289,10 @@ class FairGNN(nn.Module):
         self.A_loss = 0
 
     def fair_metric(self, sens, labels, output, idx):
+        # print("sens: ", sens)
+        # print("labels: ", labels)
+        # print("output: ", output)
+        # print("idx: ", idx)
         val_y = labels[idx].cpu().numpy()
         idx_s0 = sens.cpu().numpy()[idx.cpu().numpy()] == 0
         idx_s1 = sens.cpu().numpy()[idx.cpu().numpy()] == 1
@@ -130,14 +301,26 @@ class FairGNN(nn.Module):
         idx_s1_y1 = np.bitwise_and(idx_s1, val_y == 1)
 
         pred_y = (output[idx].squeeze() > 0).type_as(labels).cpu().numpy()
+        # print("output[idx] : ", output[idx])
+        # print("pred_y :", pred_y)
+        # print("len(pred_y[idx_s0]) :", len(pred_y[idx_s0]))
+        # print("sum(pred_y[idx_s0]) :", sum(pred_y[idx_s0]))
+        # print("sum(idx_s0): ", sum(idx_s0))
+        # print("sum(pred_y[idx_s1]):", sum(pred_y[idx_s1]))
+        # print("sum(idx_s1): ", sum(idx_s1))
+        labels = "I_am_working_in_field"
         parity = abs(
             sum(pred_y[idx_s0]) / sum(idx_s0) - sum(pred_y[idx_s1]) / sum(idx_s1)
         )
+
         equality = abs(
             sum(pred_y[idx_s0_y1]) / sum(idx_s0_y1)
             - sum(pred_y[idx_s1_y1]) / sum(idx_s1_y1)
         )
-
+        # print("sens: ", sens)
+        # print("labels: ", labels)
+        # print("output: ", output)
+        # print("idx: ", idx)
         return parity, equality
 
     def fair_metric_direct(self, pred, labels, sens):
@@ -150,6 +333,8 @@ class FairGNN(nn.Module):
             sum(pred[idx_s0_y1]) / sum(idx_s0_y1)
             - sum(pred[idx_s1_y1]) / sum(idx_s1_y1)
         )
+        # print("PARITY.item() : ", parity.item())
+        # print("EQUALITY.item() : ", equality.item())
         return parity.item(), equality.item()
 
     def forward(self, g, x):
@@ -168,9 +353,7 @@ class FairGNN(nn.Module):
         s = self.estimator(edge_index, x)
         h = self.GNN(edge_index, x)
         y = self.classifier(h)
-        print("S: ", s)
-        print("H: ", h)
-        print("Y: ", y)
+
         s_g = self.adv(h)
 
         s_score = torch.sigmoid(s.detach())
@@ -254,10 +437,14 @@ class FairGNN(nn.Module):
             parity_val, equality_val = self.fair_metric(sens, labels, output, idx_val)
 
             # if acc_val > args.acc: #and roc_val > args.roc:
-
-            if acc_val > args.acc or epoch == 0:
-                #if parity_val + equality_val < best_fair:
-                if acc_val>best_acc:
+            # print("acc_val: ", acc_val)
+            # print("parity val:", parity_val)
+            # print("equality_val: ", equality_val)
+            # print("best fair: ", best_fair)
+            if acc_val > args.acc or epoch ==0: # > args.acc
+                # if parity_val + equality_val < best_fair:
+                    # if acc_val>best_acc:
+                if acc_val > best_acc:
                     best_epoch = epoch
                     best_fair = parity_val + equality_val
                     best_acc = acc_val
@@ -352,7 +539,7 @@ class FairGNN(nn.Module):
             self.labels[idx_test].detach().cpu().numpy(),
             self.sens[idx_test].detach().cpu().numpy(),
         )
-
+        
         return (
             ACC,
             AUCROC,

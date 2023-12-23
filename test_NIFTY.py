@@ -1,7 +1,7 @@
 import numpy as np
 import csv
 import argparse
-from pygdebias.debiasing import GNN
+from pygdebias.debiasing import NIFTY
 from pygdebias.datasets import Income, Pokec_z, Pokec_n, Bail, Nba
 
 parser = argparse.ArgumentParser()
@@ -18,7 +18,7 @@ seed = 0
 curr_dict = {} 
 print(zip(args.num_hidden, args.num_proj_hidden, args.lr, args.weight_decay, args.sim_coeff))
 
-for i in range (1,2): 
+for i in range (1,6): 
     seed = i 
     if seed == 1: 
         accuracy = []
@@ -89,28 +89,9 @@ for i in range (1,2):
             # income.seed(seed), 
         )
         print("nba")
-    # print("idx_train: ", len(idx_train))
-    # print("idx_val: ", len(idx_val))
-    # print("idx_test: ", len(idx_test))
-    # print("len of labels: ", len(labels))
-    # print("SIM_COEFF: ", args.sim_coeff[seed-1])
-    # for num_hidden, num_proj_hidden, lr, weight_decay, sim_coeff in zip(args.num_hidden, args.num_proj_hidden, args.lr, args.weight_decay, args.sim_coeff):
-    #     model = GNN(adj, 
-    #                     features, 
-    #                     labels, 
-    #                     idx_train, 
-    #                     idx_val, 
-    #                     idx_test, 
-    #                     sens, 
-    #                     idx_train,
-    #                     num_hidden = num_hidden,  
-    #                     num_proj_hidden = num_proj_hidden,
-    #                     lr = lr,
-    #                     weight_decay = weight_decay, 
-    #                     sim_coeff = sim_coeff
-    #                     ) #features.shape[1]
+
     print("SEED: ", seed)
-    model = GNN(
+    model = NIFTY(
         adj, 
         features, 
         labels, 
@@ -118,7 +99,6 @@ for i in range (1,2):
         idx_val, 
         idx_test, 
         sens, 
-        idx_train,
         num_hidden = args.num_hidden[seed-1],  
         num_proj_hidden = args.num_proj_hidden[seed-1],
         lr = args.lr[seed-1],
@@ -163,7 +143,7 @@ for i in range (1,2):
     print("F1_sens1: ", F1_sens1)
     print("SP: ", SP)
     print("EO:", EO)
-curr_dict['Model'] = 'GAT'
+curr_dict['Model'] = 'NIFTY_GCN'
 
 if args.dataset == 'pokec_z': 
     curr_dict['Dataset'] = str('pokec1')

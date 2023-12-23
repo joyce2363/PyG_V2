@@ -6,19 +6,48 @@ import argparse
 import time
 import torch
 from tqdm import tqdm
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import GCNConv, GATConv
 
 
-class GCN(nn.Module):
-    def __init__(self, nfeat, nhid, dropout=0.5):
-        super(GCN, self).__init__()
-        # self.gc1 = spectral_norm(GCNConv(nfeat, nhid).lin)
-        self.gc1 = GCNConv(nfeat, nhid)
+# class GCN(nn.Module):
+#     def __init__(self, nfeat, nhid, dropout=0.5):
+#         super(GCN, self).__init__()
+#         # self.gc1 = spectral_norm(GCNConv(nfeat, nhid).lin)
+#         self.gc1 = GCNConv(nfeat, nhid)
 
-    def forward(self, edge_index, x):
-        x = self.gc1(x, edge_index)
-        return x
+#     def forward(self, edge_index, x):
+#         x = self.gc1(x, edge_index)
+#         return x
+    
+class GAT(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5, nheads=1): 
+        super(GAT, self).__init__()
+        # nfeat = 96, 
+        # nhid = 16,
+        self.conv1 = GATConv(nfeat, nhid, heads=nheads, dropout=dropout)
+        self.conv1.att = None 
+        self.transition = nn.Sequential(
+            nn.ReLU(), 
+            nn.BatchNorm1d(nhid * nheads), 
+            nn.Dropout(p=dropout)
+        )
+        for m in self.modules(): 
+            self.weights_init(m)
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
 
+    def forward(self, x, edge_index):
+        print("CALLING THIS FORWARD FUNCTION :p")
+        print("CHECK THIS OUT: ", x.size())
+        print("EDGE_INDEX: ", edge_index.size())
+        x = self.conv1(x, edge_index)
+        x = x.flatten(start_dim=1)  # Flatten node features across heads
+        x = self.transition(x)
+        return x 
+    
 
 def accuracy(output, labels):
     output = output.squeeze()
@@ -28,80 +57,82 @@ def accuracy(output, labels):
     return correct / len(labels)
 
 
-def get_model(nfeat, args):
-    model = GCN(nfeat, nhid=args.num_hidden, dropout=args.dropout)
+def get_model(nfeat, num_hidden):
+    model = GAT(nfeat, num_hidden)
 
     return model
 
 
-class FairGNN(nn.Module):
+class FairGNN_3(nn.Module):
     def __init__(
-        self, nfeat, num_hidden, alpha, beta, acc, sim_coeff, lr, weight_decay, proj_hidden, n_order=10, subgraph_size=30, epoch=2000
+        self, 
+        adj, 
+        features, 
+        labels, 
+        idx_train, 
+        idx_val, 
+        idx_test, 
+        sens, 
+        sens_idx, 
+        num_hidden, 
+        alpha, 
+        beta, 
+        acc, 
+        sim_coeff, 
+        lr, 
+        weight_decay, 
+        proj_hidden, 
+        n_order=10, 
+        subgraph_size=30, 
+        epoch=2000
     ):
-        super(FairGNN, self).__init__()
+        super(FairGNN_3, self).__init__()
 
         parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "--no-cuda",
-            action="store_true",
-            default=False,
-            help="Disables CUDA training.",
+        parser.add_argument("--no-cuda",action="store_true", default=False, help="Disables CUDA training.",
         )
         parser.add_argument("--seed", type=int, default=1, help="Random seed.")
-        parser.add_argument(
-            "--epochs",
-            type=int,
-            default=epoch,  # 1000
-            help="Number of epochs to train.",
+        parser.add_argument("--epochs", type=int, default=epoch, help="Number of epochs to train.",
         )
-
-        parser.add_argument(
-            "--dropout",
-            type=float,
-            default=0.5,
-            help="Dropout rate (1 - keep probability).",
+        parser.add_argument( "--dropout", type=float, default=0.5, help="Dropout rate (1 - keep probability).",
         )
-
-        parser.add_argument(
-            "--dataset",
-            type=str,
-            default="synthetic",
-            choices=["synthetic", "bail", "credit", "pokec_n", "pokec_z"],
+        parser.add_argument("--dataset", type=str, default="nba", choices=["bail", "pokec_n", "pokec_z", "nba"],
         )
-        parser.add_argument(
-            "--encoder",
-            type=str,
-            default="sage",
-            choices=["gcn", "gin", "sage", "infomax", "jk"],
+        parser.add_argument("--encoder", type=str, default="sage", choices=["gcn", "gin", "sage", "infomax", "jk"],
         )
         parser.add_argument("--batch_size", type=int, help="batch size", default=100)
-        parser.add_argument(
-            "--subgraph_size", type=int, help="subgraph size", default=subgraph_size
+        parser.add_argument("--subgraph_size", type=int, help="subgraph size", default=subgraph_size
         )
-        parser.add_argument(
-            "--n_order", type=int, help="order of neighbor nodes", default=n_order
+        parser.add_argument("--n_order", type=int, help="order of neighbor nodes", default=n_order
         )
         parser.add_argument("--hidden_size", type=int, help="hidden size", default=1024)
-        parser.add_argument(
-            "--experiment_type",
-            type=str,
-            default="train",
-            choices=["train", "cf", "test"],
+        parser.add_argument("--experiment_type", type=str, default="train", choices=["train", "cf", "test"],
         )  # train, cf, test
 
         args = parser.parse_known_args()[0]
-        args.num_hidden = num_hidden
+        # args.num_hidden = num_hidden
         args.alpha = alpha
         args.beta = beta
         args.acc = acc
         args.lr = lr
         args.weight_decay = weight_decay
-        nhid = args.num_hidden
+
+        self.sim_coeff = sim_coeff
+        #self.encoder = encoder
+        self.labels = labels
+        self.idx_train = idx_train
+        self.idx_val = idx_val
+        self.idx_test = idx_test
+        self.sens = sens
+        self.num_hidden = num_hidden
+        # nhid = args.num_hidden
         dropout = args.dropout
-        self.estimator = GCN(nfeat, 1, dropout)
-        self.GNN = get_model(nfeat, args)
-        self.classifier = nn.Linear(nhid, 1)
-        self.adv = nn.Linear(nhid, 1)
+        self.estimator = GAT(features.shape[1], num_hidden)
+        print("FIRST WORK")
+        self.GNN = get_model(features.shape[1], num_hidden)
+        print("SECOND WORK")
+        self.classifier = nn.Linear(num_hidden, 1)
+        self.adv = nn.Linear(num_hidden, 1)
 
         G_params = (
             list(self.GNN.parameters())
@@ -158,15 +189,17 @@ class FairGNN(nn.Module):
         y = self.classifier(z)
         return y, s
 
-    def optimize(self, g, x, labels, idx_train, sens, idx_sens_train, edge_index):
+    def optimize(self, g, features, labels, idx_train, sens, idx_sens_train, edge_index):
         self.train()
 
         ### update E, G
         self.adv.requires_grad_(False)
         self.optimizer_G.zero_grad()
+        # print("features.shape[1], optimize: ",features.shape[1])
+        print("self.num_hidden, optimize: ", self.num_hidden)
 
-        s = self.estimator(edge_index, x)
-        h = self.GNN(edge_index, x)
+        s = self.estimator(edge_index, features)
+        h = self.GNN(edge_index, features)
         y = self.classifier(h)
         print("S: ", s)
         print("H: ", h)
@@ -232,7 +265,7 @@ class FairGNN(nn.Module):
         best_acc = 0
 
         self.g = g
-        self.x = features
+        self.features = features
         self.labels = labels
         self.sens = sens
 
@@ -243,8 +276,10 @@ class FairGNN(nn.Module):
         for epoch in tqdm(range(args.epochs)):
             t = time.time()
             self.train()
+            print("SELF.FEATURES: ", self.features)
+            print("SELF.EDGE_INDEX: ", self.edge_index)
             self.optimize(
-                g, features, labels, idx_train, sens, idx_sens_train, self.edge_index
+                g, self.features, labels, idx_train, sens, idx_sens_train, self.edge_index
             )
             self.eval()
 
@@ -321,8 +356,8 @@ class FairGNN(nn.Module):
 
     def predict_(self, idx_test):
         self.eval()
-        output, s = self.forward(self.edge_index, self.x)
-
+        # output, s = self.forward(self.edge_index, self.x)
+        output, s = self.forward (self.features.to(self.device), self.edge_index.to(self.device))
         output = (output > 0).long().detach().cpu().numpy()
         F1 = f1_score(
             self.labels[idx_test].detach().cpu().numpy(),

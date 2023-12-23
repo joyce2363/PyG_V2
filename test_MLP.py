@@ -6,6 +6,11 @@ from pygdebias.datasets import Income, Pokec_z, Pokec_n, Bail, Nba
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default="nba", help='One dataset from income, bail, pokec1, and pokec2.')
+parser.add_argument('--num_hidden', type=int, default=16)
+parser.add_argument('--num_proj_hidden', type=int, default=16)
+parser.add_argument('--lr', type=float, default=0.01)
+parser.add_argument('--weight_decay', type=float, default=1e-5)
+parser.add_argument('--sim_coeff', type=float, default=0.5 )
 args = parser.parse_args()
 
 # Available choices: 'Credit', 'German', 'Facebook', 'Pokec_z', 'Pokec_n', 'Nba', 'Twitter', 'Google', 'LCC', 'LCC_small', 'Cora', 'Citeseer', 'Amazon', 'Yelp', 'Epinion', 'Ciao', 'Dblp', 'Filmtrust', 'Lastfm', 'Ml-100k', 'Ml-1m', 'Ml-20m', 'Oklahoma', 'UNC', 'Bail'.
@@ -17,6 +22,7 @@ for i in range (1,6):
         accuracy = []
         satistical_parity = []
         equal_opportunity = []
+        
     if args.dataset == "income": 
         income = Income(seed)
         # Income.load_income(dataset = "income", seed=seed)
@@ -95,7 +101,12 @@ for i in range (1,6):
                     idx_val, 
                     idx_test, 
                     sens, 
-                    idx_train) #features.shape[1]
+                    idx_train,
+                    num_hidden = args.num_hidden,  
+                    num_proj_hidden = args.num_proj_hidden,
+                    lr = args.lr,
+                    weight_decay = args.weight_decay, 
+                    sim_coeff = args.sim_coeff) #features.shape[1]
 
         # Train the model.
     model.fit()
