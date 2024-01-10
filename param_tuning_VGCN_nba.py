@@ -8,7 +8,7 @@ import argparse
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', type=str, default="pokec_n", help='One dataset from income, bail, pokec1, and pokec2.')
+parser.add_argument('--dataset', type=str, default="nba", help='One dataset from income, bail, pokec1, and pokec2.')
 parser.add_argument('--seed', type=str, default="1")
 args = parser.parse_args()
 

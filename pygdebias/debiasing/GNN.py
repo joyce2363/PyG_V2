@@ -31,9 +31,9 @@ class Classifier(nn.Module):
 
 class GAT(nn.Module):
     def __init__(self, nfeat, nhid, dropout=0.5, nheads=1): 
+        print("NHID: ", nhid)
+        print("NFEAT: ", nfeat)
         super(GAT, self).__init__()
-        # nfeat = 96, # test
-        # nhid = 16, # test
         self.conv1 = GATConv(nfeat, nhid, heads=nheads, dropout=dropout)
         self.conv1.att = None 
         self.transition = nn.Sequential(
@@ -50,8 +50,6 @@ class GAT(nn.Module):
                 m.bias.data.fill_(0.0)
 
     def forward(self, x, edge_index):
-        print("CHECK THIS OUT: ", x.size())
-        print("EDGE_INDEX: ", edge_index.size())
         x = self.conv1(x, edge_index)
         x = x.flatten(start_dim=1)  # Flatten node features across heads
         x = self.transition(x)
@@ -112,6 +110,7 @@ class Encoder(torch.nn.Module):
         super(Encoder, self).__init__()
         self.base_model = base_model
         if self.base_model == 'gat':
+            print("out_channels: ", out_channels)
             self.conv = GAT(in_channels, out_channels)
         for m in self.modules():
             self.weights_init(m)
@@ -150,10 +149,7 @@ class GNN(torch.nn.Module):
         super(GNN, self).__init__()        
         self.device = device
         self.edge_index = convert.from_scipy_sparse_matrix(sp.coo_matrix(adj.to_dense().numpy()))[0]
-        
-        # self.encoder = Encoder(input_size=features.shape[1], hidden_size=16, output_size = num_hidden).to(device)
-        print("features.shape[1]:", features.shape[1])
-        print("NUM_HIDDEN:", num_hidden)
+       
         self.encoder = Encoder(in_channels=features.shape[1], out_channels=num_hidden, base_model=encoder).to(device)
         
         self.sim_coeff = sim_coeff

@@ -7,8 +7,9 @@ from .EDITS import EDITS as EDITS
 from .FairGNN_edited_optune import FairGNN_edited_optune as FairGNN_edited_optune
 from .FairGNN import FairGNN as FairGNN
 # from .FairGNN_2 import FairGNN_2 as FairGNN_2
-from .FairGNN_3 import FairGNN_3 as FairGNN_3
-
+from .FairGNN_GAT import FairGNN_GAT as FairGNN_GAT
+from .FairGNN_GCN import FairGNN_GCN as FairGNN_GCN
+from .FairGNN_ALL import FairGNN_ALL as FairGNN_ALL
 from .GCN_MLP import GCN_MLP as GCN_MLP
 # from .FairGNN_correct1 import FairGNN_correct1 as FairGNN_correct1
 

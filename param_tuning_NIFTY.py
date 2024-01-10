@@ -140,15 +140,21 @@ for key, value in best_params.items():
     print(f"{key}: {value}")
 
 if args.dataset == "pokec_z": 
-    filename = 'hyperparameter' + str(args.dataset) + '.csv'
+    filename = 'hyperparameter_nifty_gcn_' + '.csv'
 elif args.dataset == "pokec_n":
-    filename = 'hyperparameter.csv'
+    filename = 'hyperparameter_nifty_gcn_' + '.csv'
+
+    # filename = 'hyperparameter.csv'
 elif args.dataset == "nba": 
-    filename = 'hyperparameter' + str(args.dataset) + '.csv'
+    # filename = 'hyperparameter' + str(args.dataset) + '.csv'
+    filename = 'hyperparameter_nifty_gcn_' + '.csv'
+
 elif args.dataset == "income": 
-    filename = 'hyperparameter' + str(args.dataset) + '.csv'
+    # filename = 'hyperparameter' + str(args.dataset) + '.csv'
+    filename = 'hyperparameter_nifty_gcn_' + '.csv'
 elif args.dataset == "bail": 
-    filename = 'hyperparameter' + str(args.dataset) + '.csv'
+    # filename = 'hyperparameter' + str(args.dataset) + '.csv'
+    filename = 'hyperparameter_nifty_gcn_' + '.csv'
 
 
 

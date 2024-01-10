@@ -1,21 +1,21 @@
 from pygdebias.debiasing import FairGNN
-from pygdebias.datasets import Pokec_n
+from pygdebias.datasets import Income
 
 # Available choices: 'Credit', 'German', 'Facebook', 'Pokec_z', 'Pokec_n', 'Nba', 'Twitter', 'Google', 'LCC', 'LCC_small', 'Cora', 'Citeseer', 'Amazon', 'Yelp', 'Epinion', 'Ciao', 'Dblp', 'Filmtrust', 'Lastfm', 'Ml-100k', 'Ml-1m', 'Ml-20m', 'Oklahoma', 'UNC', 'Bail'.
 
-pokec_n = Pokec_n()
-print("pokec_n class: ", pokec_n)
+income = Income(1)
+print("income class: ", income)
 
 adj, features, idx_train, idx_val, idx_test, labels, sens= (
-    pokec_n.adj(),
-    pokec_n.features(),
-    pokec_n.idx_train(),
-    pokec_n.idx_val(),
-    pokec_n.idx_test(),
-    pokec_n.labels(),
-    pokec_n.sens(),
+    income.adj(),
+    income.features(),
+    income.idx_train(),
+    income.idx_val(),
+    income.idx_test(),
+    income.labels(),
+    income.sens(),
 )
-print("pokec_n.labels() ", pokec_n.labels())
+print("income.labels() ", income.labels())
 # Initiate the model (with default parameters).
 model = FairGNN(features.shape[1]) #features.shape[1]
 

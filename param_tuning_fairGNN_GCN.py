@@ -1,4 +1,4 @@
-from pygdebias.debiasing import FairGNN
+from pygdebias.debiasing import FairGNN_GCN
 from pygdebias.datasets import Pokec_n, Pokec_z, Nba, Income, Bail
 import optuna
 import csv
@@ -80,14 +80,14 @@ def objective(trial):
     weight_decay = trial.suggest_categorical("weight_decay", [1e-2, 0.05, 1e-3, 0.002, 1e-4])
 
     # Create GNN model with suggested hyperparameters
-    model = FairGNN(
-                    # adj, 
-                    # features, 
-                    # labels, 
-                    # idx_train, 
-                    # idx_val, 
-                    # idx_test, 
-                    # sens, 
+    model = FairGNN_GCN(
+                    adj, 
+                    features, 
+                    labels, 
+                    idx_train, 
+                    idx_val, 
+                    idx_test, 
+                    sens, 
                     nfeat=features.shape[1],
                     num_hidden = num_hidden,
                     alpha = alpha,
@@ -140,7 +140,7 @@ best_params = best_trial.params
 best_params["dataset: "] = args.dataset
 best_params["seed: "] = args.seed
 best_params["acc: "] = best_trial.value
-best_params["model: "] = "fairGCN_1"
+best_params["model: "] = "fairGNN_GCN"
 # Print the best parameters
 print("Best parameters:")
 for key, value in best_params.items():

@@ -6,25 +6,49 @@ import argparse
 import time
 import torch
 from tqdm import tqdm
-from torch_geometric.nn import GCNConv, GATConv
+from torch_geometric.nn import GCNConv, GATConv, SAGEConv
 
+class GCN(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5):
+        super(GCN, self).__init__()
+        # self.gc1 = spectral_norm(GCNConv(nfeat, nhid).lin)
+        self.gc1 = GCNConv(nfeat, nhid)
 
-# class GCN(nn.Module):
-#     def __init__(self, nfeat, nhid, dropout=0.5):
-#         super(GCN, self).__init__()
-#         # self.gc1 = spectral_norm(GCNConv(nfeat, nhid).lin)
-#         self.gc1 = GCNConv(nfeat, nhid)
+    def forward(self, edge_index, x):
+        print("EDGE_INDEX.size()", edge_index.size())
+        print("X.size()", x.size())
+        x = self.gc1(x, edge_index)
+        print("X SIZE: ", x.size())
+        return x
 
-#     def forward(self, edge_index, x):
-#         x = self.gc1(x, edge_index)
-#         return x
-    
+class SAGE(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5):
+        super(SAGE, self).__init__()
+        self.conv1 = SAGEConv(nfeat, nhid, normalize=True)
+        self.conv1.aggr = 'mean'
+        self.transition = nn.Sequential(
+            nn.ReLU(),
+            nn.BatchNorm1d(nhid),
+            nn.Dropout(p=dropout)
+        )
+        for m in self.modules():
+            self.weights_init(m)
+
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
+
+    def forward(self, edge_index, x):
+        x = self.conv1(x, edge_index)
+        x = self.transition(x)
+        return x
+
 class GAT(nn.Module):
     def __init__(self, nfeat, nhid, dropout=0.5, nheads=1): 
         super(GAT, self).__init__()
-        # nfeat = 96, 
-        # nhid = 16,
-        self.conv1 = GATConv(nfeat, nhid, heads=nheads, dropout=dropout)
+        self.conv1 = GATConv(nfeat, nhid, heads=nheads, dropout=0.5)
         self.conv1.att = None 
         self.transition = nn.Sequential(
             nn.ReLU(), 
@@ -38,15 +62,14 @@ class GAT(nn.Module):
             torch.nn.init.xavier_uniform_(m.weight.data)
             if m.bias is not None:
                 m.bias.data.fill_(0.0)
-
-    def forward(self, x, edge_index):
-        print("CALLING THIS FORWARD FUNCTION :p")
-        print("CHECK THIS OUT: ", x.size())
+    def forward(self, edge_index, x):
+        print("this is X: ", x.size())
         print("EDGE_INDEX: ", edge_index.size())
         x = self.conv1(x, edge_index)
-        x = x.flatten(start_dim=1)  # Flatten node features across heads
+        x = x.flatten(start_dim=1)
         x = self.transition(x)
         return x 
+    
     
 
 def accuracy(output, labels):
@@ -57,46 +80,37 @@ def accuracy(output, labels):
     return correct / len(labels)
 
 
-def get_model(nfeat, num_hidden):
-    model = GAT(nfeat, num_hidden)
+def get_model(nfeat, num_hidden, gnn):
+    if gnn == "sage":
+        model = SAGE(nfeat, num_hidden)
+    elif gnn == "gat": 
+        model = GAT(nfeat, num_hidden)
+    elif gnn == "gcn":
+        model = GCN(nfeat, num_hidden)
+
 
     return model
 
 
-class FairGNN_3(nn.Module):
+class FairGNN_GNN(nn.Module):
     def __init__(
         self, 
-        adj, 
-        features, 
-        labels, 
-        idx_train, 
-        idx_val, 
-        idx_test, 
-        sens, 
-        sens_idx, 
-        num_hidden, 
-        alpha, 
-        beta, 
-        acc, 
-        sim_coeff, 
-        lr, 
-        weight_decay, 
-        proj_hidden, 
-        n_order=10, 
-        subgraph_size=30, 
-        epoch=2000
+        adj, features, labels, idx_train, idx_val, idx_test, sens,
+        nfeat, num_hidden, sim_coeff, acc, alpha, beta, proj_hidden,
+        lr, weight_decay, model, n_order=10, subgraph_size=30, epoch=2000, device="cuda"
     ):
-        super(FairGNN_3, self).__init__()
+        super(FairGNN_GNN, self).__init__()
 
         parser = argparse.ArgumentParser()
         parser.add_argument("--no-cuda",action="store_true", default=False, help="Disables CUDA training.",
         )
-        parser.add_argument("--seed", type=int, default=1, help="Random seed.")
+        parser.add_argument("--model",type=str, default="gcn", choices=["gcn", "gat", "sage"],
+        )
         parser.add_argument("--epochs", type=int, default=epoch, help="Number of epochs to train.",
         )
         parser.add_argument( "--dropout", type=float, default=0.5, help="Dropout rate (1 - keep probability).",
         )
-        parser.add_argument("--dataset", type=str, default="nba", choices=["bail", "pokec_n", "pokec_z", "nba"],
+        parser.add_argument("--dataset", type=str, default="nba", choices=["bail", "pokec_n", "pokec_z", "nba", "income"],
         )
         parser.add_argument("--encoder", type=str, default="sage", choices=["gcn", "gin", "sage", "infomax", "jk"],
         )
@@ -116,7 +130,7 @@ class FairGNN_3(nn.Module):
         args.acc = acc
         args.lr = lr
         args.weight_decay = weight_decay
-
+        args.epoch = epoch
         self.sim_coeff = sim_coeff
         #self.encoder = encoder
         self.labels = labels
@@ -125,11 +139,16 @@ class FairGNN_3(nn.Module):
         self.idx_test = idx_test
         self.sens = sens
         self.num_hidden = num_hidden
-        # nhid = args.num_hidden
+        nhid = num_hidden
         dropout = args.dropout
-        self.estimator = GAT(features.shape[1], num_hidden)
-        print("FIRST WORK")
-        self.GNN = get_model(features.shape[1], num_hidden)
+        args.model = model
+        if args.model == "sage":
+            self.estimator = SAGE(nfeat, 1)
+        elif args.model == "gat":
+            self.estimator = GAT(nfeat, 1)
+        elif args.model == "gcn":
+            self.estimator = GCN(nfeat, 1)
+        self.GNN = get_model(nfeat, num_hidden, args.model)
         print("SECOND WORK")
         self.classifier = nn.Linear(num_hidden, 1)
         self.adv = nn.Linear(num_hidden, 1)
@@ -182,31 +201,33 @@ class FairGNN_3(nn.Module):
             - sum(pred[idx_s1_y1]) / sum(idx_s1_y1)
         )
         return parity.item(), equality.item()
-
+    
     def forward(self, g, x):
         s = self.estimator(g, x)
         z = self.GNN(g, x)
         y = self.classifier(z)
         return y, s
 
-    def optimize(self, g, features, labels, idx_train, sens, idx_sens_train, edge_index):
+    def optimize(self, g, x, labels, idx_train, sens, idx_sens_train, edge_index):
         self.train()
 
         ### update E, G
         self.adv.requires_grad_(False)
         self.optimizer_G.zero_grad()
-        # print("features.shape[1], optimize: ",features.shape[1])
         print("self.num_hidden, optimize: ", self.num_hidden)
+        print("EDGE_INDEX: ", edge_index.size())
+        print("184 X:", x.size())
 
-        s = self.estimator(edge_index, features)
-        h = self.GNN(edge_index, features)
+        s = self.estimator(edge_index, x)
+        h = self.GNN(edge_index, x)
         y = self.classifier(h)
-        print("S: ", s)
-        print("H: ", h)
-        print("Y: ", y)
+        # print("S: ", s)
+        # print("H: ", h)
+        # print("Y: ", y)
         s_g = self.adv(h)
 
         s_score = torch.sigmoid(s.detach())
+        print("PREV S_SCORE: ", s_score.size())
         # s_score = (s_score > 0.5).float()
         s_score[idx_sens_train] = sens[idx_sens_train].unsqueeze(1).float()
         y_score = torch.sigmoid(y)
@@ -219,6 +240,8 @@ class FairGNN_3(nn.Module):
         self.cls_loss = self.criterion(
             y[idx_train], labels[idx_train].unsqueeze(1).float()
         )
+        print("s_g score: ", s_g.size())
+        print("s_score: ", s_score.size())
         self.adv_loss = self.criterion(s_g, s_score)
 
         self.G_loss = (
@@ -237,16 +260,19 @@ class FairGNN_3(nn.Module):
 
     def fit(
         self,
-        g: torch.Tensor = None,
-        features: torch.Tensor = None,
-        labels: torch.Tensor = None,
-        idx_train: torch.Tensor = None,
-        idx_val: torch.Tensor = None,
-        idx_test: torch.Tensor = None,
-        sens: torch.Tensor = None,
-        idx_sens_train: torch.Tensor = None,
-        device="cuda",
+        g, features, labels, idx_train, idx_val, idx_test, sens, idx_sens_train,
+        device = "cuda",
+        # g: torch.Tensor = None,
+        # features: torch.Tensor = None,
+        # labels: torch.Tensor = None,
+        # idx_train: torch.Tensor = None,
+        # idx_val: torch.Tensor = None,
+        # idx_test: torch.Tensor = None,
+        # sens: torch.Tensor = None,
+        # idx_sens_train: torch.Tensor = None,
+        # device="cuda",
     ):
+        print("FEATURES PART 2:", features)
         # with args
         if idx_sens_train is None:
             idx_sens_train = idx_train
@@ -265,7 +291,7 @@ class FairGNN_3(nn.Module):
         best_acc = 0
 
         self.g = g
-        self.features = features
+        self.x = features
         self.labels = labels
         self.sens = sens
 
@@ -276,10 +302,9 @@ class FairGNN_3(nn.Module):
         for epoch in tqdm(range(args.epochs)):
             t = time.time()
             self.train()
-            print("SELF.FEATURES: ", self.features)
             print("SELF.EDGE_INDEX: ", self.edge_index)
             self.optimize(
-                g, self.features, labels, idx_train, sens, idx_sens_train, self.edge_index
+                g, features, labels, idx_train, sens, idx_sens_train, self.edge_index
             )
             self.eval()
 
@@ -298,7 +323,7 @@ class FairGNN_3(nn.Module):
                     best_acc = acc_val
                     self.val_loss = -acc_val.detach().cpu().item()
                     self.eval()
-                    output, s = self.forward(self.edge_index, self.x)
+                    output, s = self.forward(self.edge_index, features)
 
                     output = (output > 0).long().detach().cpu().numpy()
                     F1 = f1_score(
@@ -356,8 +381,7 @@ class FairGNN_3(nn.Module):
 
     def predict_(self, idx_test):
         self.eval()
-        # output, s = self.forward(self.edge_index, self.x)
-        output, s = self.forward (self.features.to(self.device), self.edge_index.to(self.device))
+        output, s = self.forward (self.edge_index.to(self.device), self.edge_index.to(self.device))
         output = (output > 0).long().detach().cpu().numpy()
         F1 = f1_score(
             self.labels[idx_test].detach().cpu().numpy(),

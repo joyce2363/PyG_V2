@@ -111,7 +111,11 @@ class Encoder(torch.nn.Module):
 
 
 class NIFTY_GAT(torch.nn.Module):
-    def __init__(self, adj, features, labels, idx_train, idx_val, idx_test, sens, sens_idx=-1, num_hidden=16, num_proj_hidden=16, lr=0.001, weight_decay=1e-5, drop_edge_rate_1=0.1, drop_edge_rate_2=0.1, drop_feature_rate_1=0.1, drop_feature_rate_2=0.1, encoder="gat", sim_coeff=0.5, nclass=1, device="cuda"):
+    def __init__(self, adj, features, labels, idx_train, idx_val, idx_test, sens, 
+                 sens_idx=-1, num_hidden=16, num_proj_hidden=16, lr=0.001, 
+                 weight_decay=1e-5, drop_edge_rate_1=0.1, drop_edge_rate_2=0.1, 
+                 drop_feature_rate_1=0.1, drop_feature_rate_2=0.1, encoder="gat", 
+                 sim_coeff=0.5, nclass=1, device="cuda"):
         super(NIFTY_GAT, self).__init__()
 
         self.device = device

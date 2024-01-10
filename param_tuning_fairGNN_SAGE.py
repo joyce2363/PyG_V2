@@ -1,4 +1,4 @@
-from pygdebias.debiasing import FairGNN
+from pygdebias.debiasing import FairGNN_ALL
 from pygdebias.datasets import Pokec_n, Pokec_z, Nba, Income, Bail
 import optuna
 import csv
@@ -10,6 +10,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default="nba", help='One dataset from income, bail, pokec1, and pokec2.')
 parser.add_argument('--seed', type=str, default="1")
+parser.add_argument('model', type=str, default='gcn')
 args = parser.parse_args()
 
 if args.dataset == "pokec_n": 
@@ -71,23 +72,23 @@ elif args.dataset == "bail":
 def objective(trial):
     # Define the hyperparameter search space
     num_hidden = trial.suggest_categorical("num_hidden", [16, 64, 128, 256])
-    sim_coeff = trial.suggest_categorical("sim_coeff", [0.3, 0.5, 0.7])
-    acc = trial.suggest_categorical("acc", [0.2, 0.3, 0.4, 0.5, 0.6, 0.7])
-    alpha = trial.suggest_categorical("alpha", [1, 10, 20, 40, 80, 160, 380])
-    beta = trial.suggest_categorical("beta", [1, 10, 20, 40, 80, 160, 380])
-    proj_hidden = trial.suggest_categorical("proj_hidden", [4, 16, 64, 128, 256])
+    sim_coeff = trial.suggest_categorical("sim_coeff", [0.3, 0.5, 0.6, 0.7])
+    acc = trial.suggest_categorical("acc", [0.2, 0.3, 0.4, 0.5, 0.6, 0.69, 0.7])
+    alpha = trial.suggest_categorical("alpha", [1, 3, 4, 5, 6, 7, 10, 20, 40])
+    beta = trial.suggest_categorical("beta", [0.1, 0.01, 0.001, 0.0001])
+    proj_hidden = trial.suggest_categorical("proj_hidden", [4, 8, 16, 64, 128])
     lr = trial.suggest_categorical("lr", [1e-2, 1e-3, 1e-4, 1e-5])
-    weight_decay = trial.suggest_categorical("weight_decay", [1e-2, 0.05, 1e-3, 0.002, 1e-4])
+    weight_decay = trial.suggest_categorical("weight_decay", [1e-2, 1e-3, 1e-4, 1e-5])
 
     # Create GNN model with suggested hyperparameters
-    model = FairGNN(
-                    # adj, 
-                    # features, 
-                    # labels, 
-                    # idx_train, 
-                    # idx_val, 
-                    # idx_test, 
-                    # sens, 
+    model = FairGNN_ALL(
+                    adj, 
+                    features, 
+                    labels, 
+                    idx_train, 
+                    idx_val, 
+                    idx_test, 
+                    sens, 
                     nfeat=features.shape[1],
                     num_hidden = num_hidden,
                     alpha = alpha,
@@ -140,7 +141,7 @@ best_params = best_trial.params
 best_params["dataset: "] = args.dataset
 best_params["seed: "] = args.seed
 best_params["acc: "] = best_trial.value
-best_params["model: "] = "fairGCN_1"
+best_params["model: "] = "fairGNN_SAGE"
 # Print the best parameters
 print("Best parameters:")
 for key, value in best_params.items():
