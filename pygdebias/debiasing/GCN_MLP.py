@@ -30,17 +30,17 @@ class Classifier(nn.Module):
         return ret
 
 
-class GCN(nn.Module):
-    def __init__(self, nfeat, nhid):
-        super(GCN, self).__init__()
-        self.gc1 = GCNConv(nfeat, nhid)
-        self.fc = nn.Linear(nhid, nhid) #nhid, nhid
+# class GCN(nn.Module):
+#     def __init__(self, nfeat, nhid):
+#         super(GCN, self).__init__()
+#         self.gc1 = GCNConv(nfeat, nhid)
+#         self.fc = nn.Linear(nhid, nhid) #nhid, nhid
 
-    def forward(self, x, edge_index):
-        x = self.gc1(x, edge_index)
-        x = self.fc(x)
+#     def forward(self, x, edge_index):
+#         x = self.gc1(x, edge_index)
+#         x = self.fc(x)
 
-        return x
+#         return x
 
 class MLP(nn.Module):
     def __init__(self, input_size, hidden_size):
@@ -97,9 +97,9 @@ class Encoder(torch.nn.Module):
                 base_model='mlp', k: int = 2):
         super(Encoder, self).__init__()
         self.base_model = base_model
-        if self.base_model == 'gcn':
-            self.conv = GCN(in_channels, out_channels)
-        elif self.base_model == 'mlp':
+        # if self.base_model == 'gcn':
+        #     self.conv = GCN(in_channels, out_channels)
+        if self.base_model == 'mlp':
             self.conv = MLP(in_channels, out_channels) # (in_channels, out_channels)
 
         for m in self.modules():
@@ -128,7 +128,6 @@ class GCN_MLP(torch.nn.Module):
             sens, 
             sens_idx, 
             num_hidden = 16,
-            # =16, #16 bail, 128 pokec_n, 128 or 64 for pokec_z, 128 for nba
             num_proj_hidden = 16,
             # =16, 
             lr = 0.001, #0.008 bail MLP

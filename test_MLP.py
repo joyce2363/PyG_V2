@@ -6,11 +6,17 @@ from pygdebias.datasets import Income, Pokec_z, Pokec_n, Bail, Nba
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default="nba", help='One dataset from income, bail, pokec1, and pokec2.')
-parser.add_argument('--num_hidden', type=int, default=16)
-parser.add_argument('--num_proj_hidden', type=int, default=16)
-parser.add_argument('--lr', type=float, default=0.01)
-parser.add_argument('--weight_decay', type=float, default=1e-5)
-parser.add_argument('--sim_coeff', type=float, default=0.5 )
+parser.add_argument('--num_hidden', nargs='+', type=int, default=[128, 128, 128, 64, 256])
+parser.add_argument('--num_proj_hidden', nargs='+', type=int, default=[256, 4, 16, 256, 4])
+parser.add_argument('--lr', nargs='+', type=float, default=[0.0001, 0.01, 0.01, 0.001, 0.001])
+parser.add_argument('--weight_decay', nargs='+', type=float, default=[0.05, 0.01])
+parser.add_argument('--sim_coeff', nargs='+', type=float, default=[0.7, 0.7] )
+# parser.add_argument('--num_hidden', type=int, default=128)
+# parser.add_argument('--num_proj_hidden', type=int, default=15)
+# parser.add_argument('--lr', type=float, default = 16)
+# parser.add_argument('--weight_decay', type=float, default = 0.05)
+# parser.add_argument('--sim_coeff', type=float, default=0.7)
+
 args = parser.parse_args()
 
 # Available choices: 'Credit', 'German', 'Facebook', 'Pokec_z', 'Pokec_n', 'Nba', 'Twitter', 'Google', 'LCC', 'LCC_small', 'Cora', 'Citeseer', 'Amazon', 'Yelp', 'Epinion', 'Ciao', 'Dblp', 'Filmtrust', 'Lastfm', 'Ml-100k', 'Ml-1m', 'Ml-20m', 'Oklahoma', 'UNC', 'Bail'.
@@ -102,11 +108,11 @@ for i in range (1,6):
                     idx_test, 
                     sens, 
                     idx_train,
-                    num_hidden = args.num_hidden,  
-                    num_proj_hidden = args.num_proj_hidden,
-                    lr = args.lr,
-                    weight_decay = args.weight_decay, 
-                    sim_coeff = args.sim_coeff) #features.shape[1]
+                    num_hidden = args.num_hidden[i-1],  
+                    num_proj_hidden = args.num_proj_hidden[i-1],
+                    lr = args.lr[i-1],
+                    weight_decay = args.weight_decay[i-1], 
+                    sim_coeff = args.sim_coeff[i-1]) #features.shape[1]
 
         # Train the model.
     model.fit()
@@ -165,7 +171,7 @@ print("statistical parity:", args.dataset, np.round(np.mean(satistical_parity), 
 print("equal Opportunity:", args.dataset, np.round(np.mean(equal_opportunity), decimals=4)*100, '+=', np.round(np.var(equal_opportunity), decimals=4)*100)
 
 
-filename = 'output.csv'
+filename = 'MLP.csv'
 
 # Writing data to CSV
 with open(filename, 'a', newline='') as file:

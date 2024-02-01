@@ -37,37 +37,6 @@ class GCN(nn.Module):
     def forward(self, x, edge_index):
         x = self.gc1(x, edge_index)
         return x
-
-class SAGE(nn.Module):
-    def __init__(self, nfeat, nhid, dropout=0.5):
-        super(SAGE, self).__init__()
-
-        # Implemented spectral_norm in the sage main file
-        # ~/anaconda3/envs/PYTORCH/lib/python3.7/site-packages/torch_geometric/nn/conv/sage_conv.py
-        self.conv1 = SAGEConv(nfeat, nhid, normalize=True)
-        self.conv1.aggr = 'mean'
-        self.transition = nn.Sequential(
-            nn.ReLU(),
-            nn.BatchNorm1d(nhid),
-            nn.Dropout(p=dropout)
-        )
-        self.conv2 = SAGEConv(nhid, nhid, normalize=True)
-        self.conv2.aggr = 'mean'
-
-        for m in self.modules():
-            self.weights_init(m)
-
-    def weights_init(self, m):
-        if isinstance(m, nn.Linear):
-            torch.nn.init.xavier_uniform_(m.weight.data)
-            if m.bias is not None:
-                m.bias.data.fill_(0.0)
-
-    def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index)
-        x = self.transition(x)
-        x = self.conv2(x, edge_index)
-        return x
     
 class Encoder_DGI(nn.Module):
     def __init__(self, nfeat, nhid):
@@ -97,10 +66,6 @@ class Encoder(torch.nn.Module):
         self.base_model = base_model
         if self.base_model == 'gcn':
             self.conv = GCN(in_channels, out_channels)
-        elif self.base_model == 'sage': 
-            self.conv = SAGE(in_channels, out_channels)
-
-
         for m in self.modules():
             self.weights_init(m)
 
@@ -495,15 +460,6 @@ class NIFTY(torch.nn.Module):
 
 
         return ACC, AUCROC, F1, ACC_sens0, AUCROC_sens0, F1_sens0, ACC_sens1, AUCROC_sens1, F1_sens1, SP, EO
-        # print report
-        #print("The AUCROC of estimator: {:.4f}".format(auc_roc_test))
-        #print(f'Parity: {parity} | Equality: {equality}')
-        #print(f'F1-score: {f1_s}')
-        #print(f'CounterFactual Fairness: {counterfactual_fairness}')
-        #print(f'Robustness Score: {robustness_score}')
-
-
-
 
     def fair_metric(self, pred, labels, sens):
 
@@ -529,13 +485,6 @@ class NIFTY(torch.nn.Module):
             result.extend([ACC, AUCROC, F1])
 
         return result
-
-
-
-
-
-
-
 
 
 def drop_feature(x, drop_prob, sens_idx, sens_flag=True):

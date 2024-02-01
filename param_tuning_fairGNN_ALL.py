@@ -73,9 +73,11 @@ def objective(trial):
     # Define the hyperparameter search space
     num_hidden = trial.suggest_categorical("num_hidden", [16, 64, 128, 256])
     sim_coeff = trial.suggest_categorical("sim_coeff", [0.3, 0.5, 0.6, 0.7])
-    acc = trial.suggest_categorical("acc", [0.2, 0.3, 0.4, 0.5, 0.6, 0.69, 0.7])
-    alpha = trial.suggest_categorical("alpha", [1, 3, 4, 5, 6, 7, 10, 20, 40])
-    beta = trial.suggest_categorical("beta", [0.1, 0.01, 0.001, 0.0001])
+    # sens_number
+    # attn_drop 
+    acc = trial.suggest_categorical("acc", [0.2, 0.3, 0.4, 0.5, 0.6, 0.68, 0.688, 0.69, 0.7, 0.8, 0.9])
+    alpha = trial.suggest_categorical("alpha", [1, 2, 3, 4, 5, 6, 7, 10, 20, 40, 50, 100])
+    beta = trial.suggest_categorical("beta", [1, 0.1, 0.01, 0.001, 0.0001])
     proj_hidden = trial.suggest_categorical("proj_hidden", [4, 8, 16, 64, 128])
     lr = trial.suggest_categorical("lr", [1e-2, 1e-3, 1e-4, 1e-5])
     weight_decay = trial.suggest_categorical("weight_decay", [1e-2, 1e-3, 1e-4, 1e-5])
@@ -98,7 +100,7 @@ def objective(trial):
                     lr = lr, 
                     weight_decay = weight_decay, 
                     model = args.model,
-                    proj_hidden = proj_hidden,
+                    # proj_hidden = proj_hidden,
                     )
     model.fit(adj, features, labels, idx_train, idx_val, idx_test, sens, idx_train)
     # Evaluate the model.
@@ -125,7 +127,7 @@ def objective(trial):
 study = optuna.create_study(direction='maximize')
 
 # Run the optimization
-study.optimize(objective, n_trials=1)  # Run 100 trials
+study.optimize(objective, n_trials=100)  # Run 100 trials
 best_params = study.best_params
 best_value = study.best_value
 
@@ -148,17 +150,7 @@ print("Best parameters:")
 for key, value in best_params.items():
     print(f"{key}: {value}")
 
-if args.dataset == "pokec_z": 
-    filename = 'hyperparameter_NEW' + str(args.dataset) + '.csv'
-elif args.dataset == "pokec_n":
-    filename = 'hyperparameter_NEW.csv'
-elif args.dataset == "nba": 
-    filename = 'hyperparameter_NEW' + str(args.dataset) + '.csv'
-elif args.dataset == "income": 
-    filename = 'hyperparameter_NEW' + str(args.dataset) + '.csv'
-elif args.dataset == "bail": 
-    filename = 'hyperparameter_NEW' + str(args.dataset) + '.csv'
-
+filename = 'fairGCN' + '.csv'
 
 
 # Writing data to CSV

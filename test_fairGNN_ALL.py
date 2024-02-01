@@ -6,7 +6,7 @@ from pygdebias.datasets import Income, Pokec_z, Pokec_n, Bail, Nba
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default="nba", help='One dataset from income, bail, pokec1, and pokec2.')
-parser.add_argument('--model', type=str, default ='gcn')
+parser.add_argument('--model', type=str, default ='sage')
 parser.add_argument('--num_hidden', nargs='+', type=int, default=[64])
 parser.add_argument('--sim_coeff', nargs='+', type=float, default=[0.6] )
 parser.add_argument('--acc', nargs='+', type=float, default=[0.4])
@@ -156,7 +156,7 @@ for i in range (1,6):
     print("F1_sens1: ", F1_sens1)
     print("SP: ", SP)
     print("EO:", EO)
-curr_dict['Model'] = 'FairGNN_' + str(args.model)
+curr_dict['Model'] = 'Fair_' + str(args.model)
 
 if args.dataset == 'pokec_z': 
     curr_dict['Dataset'] = str('pokec1')
@@ -175,7 +175,7 @@ print("statistical parity:", args.dataset, np.round(np.mean(satistical_parity), 
 print("equal Opportunity:", args.dataset, np.round(np.mean(equal_opportunity), decimals=4)*100, '+=', np.round(np.var(equal_opportunity), decimals=4)*100)
 
 
-filename = 'output_NEW.csv'
+filename = 'FAIRGNN_RESULTS.csv'
 
 # Writing data to CSV
 with open(filename, 'a', newline='') as file:

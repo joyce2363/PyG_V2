@@ -7,7 +7,7 @@ from torch_geometric.nn import GCNConv, GATConv, GINConv, SAGEConv, DeepGraphInf
 
 from sklearn.metrics import accuracy_score,roc_auc_score,recall_score,f1_score
 from torch.nn.utils import spectral_norm
-from torch_geometric.utils import dropout_adj, convert
+from torch_geometric.utils import dropout_edge, convert, dropout_edge
 
 import torch.nn.functional as F
 import torch.optim as optim
@@ -38,6 +38,37 @@ class GCN(nn.Module):
         x = self.gc1(x, edge_index)
         return x
 
+class SAGE(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5):
+        super(SAGE, self).__init__()
+
+        # Implemented spectral_norm in the sage main file
+        # ~/anaconda3/envs/PYTORCH/lib/python3.7/site-packages/torch_geometric/nn/conv/sage_conv.py
+        self.conv1 = SAGEConv(nfeat, nhid, normalize=True)
+        self.conv1.aggr = 'mean'
+        self.transition = nn.Sequential(
+            nn.ReLU(),
+            nn.BatchNorm1d(nhid),
+            nn.Dropout(p=dropout)
+        )
+        self.conv2 = SAGEConv(nhid, nhid, normalize=True)
+        self.conv2.aggr = 'mean'
+
+        for m in self.modules():
+            self.weights_init(m)
+
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
+
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index)
+        x = self.transition(x)
+        x = self.conv2(x, edge_index)
+        return x
+    
 class GAT(nn.Module):
     def __init__(self, nfeat, nhid, dropout=0.5, nheads=1): 
         super(GAT, self).__init__()
@@ -86,14 +117,15 @@ class Encoder_DGI(nn.Module):
 
 class Encoder(torch.nn.Module):
     def __init__(self, in_channels: int, out_channels: int, 
-                base_model='gcn', k: int = 2):
+                base_model='gat', k: int = 2):
         super(Encoder, self).__init__()
         self.base_model = base_model
-        if self.base_model == 'gcn':
-            self.conv = GCN(in_channels, out_channels)
-        elif self.base_model == 'gat': 
+        # if self.base_model == 'gcn':
+        #     self.conv = GCN(in_channels, out_channels)
+        if self.base_model == 'gat': 
             self.conv = GAT(in_channels, out_channels)
-
+        # if self.base_model == 'sage': 
+        #     self.conv = SAGE(in_channels, out_channels)
 
         for m in self.modules():
             self.weights_init(m)
@@ -112,10 +144,19 @@ class Encoder(torch.nn.Module):
 
 class NIFTY_GAT(torch.nn.Module):
     def __init__(self, adj, features, labels, idx_train, idx_val, idx_test, sens, 
-                 sens_idx=-1, num_hidden=16, num_proj_hidden=16, lr=0.001, 
-                 weight_decay=1e-5, drop_edge_rate_1=0.1, drop_edge_rate_2=0.1, 
-                 drop_feature_rate_1=0.1, drop_feature_rate_2=0.1, encoder="gat", 
-                 sim_coeff=0.5, nclass=1, device="cuda"):
+                 sens_idx=-1, 
+                 num_hidden=16, 
+                 num_proj_hidden=16, 
+                 lr=0.001, 
+                 weight_decay=1e-5, 
+                 drop_edge_rate_1=0.1, 
+                 drop_edge_rate_2=0.1, 
+                 drop_feature_rate_1=0.1, 
+                 drop_feature_rate_2=0.1, 
+                 encoder="gat", 
+                 sim_coeff=0.5, 
+                 nclass=1, 
+                 device="cuda"):
         super(NIFTY_GAT, self).__init__()
 
         self.device = device
@@ -128,8 +169,8 @@ class NIFTY_GAT(torch.nn.Module):
         self.encoder = Encoder(in_channels=features.shape[1], out_channels=num_hidden, base_model=encoder).to(device)
         # model = SSF(encoder=encoder, num_hidden=args.hidden, num_proj_hidden=args.proj_hidden, sim_coeff=args.sim_coeff,
                     # nclass=num_class).to(device)
-        self.val_edge_index_1 = dropout_adj(self.edge_index.to(device), p=drop_edge_rate_1)[0]
-        self.val_edge_index_2 = dropout_adj(self.edge_index.to(device), p=drop_edge_rate_2)[0]
+        self.val_edge_index_1 = dropout_edge(self.edge_index.to(device), p=drop_edge_rate_1)[0]
+        self.val_edge_index_2 = dropout_edge(self.edge_index.to(device), p=drop_edge_rate_2)[0]
         self.val_x_1 = drop_feature(features.to(device), drop_feature_rate_1, sens_idx, sens_flag=False)
         self.val_x_2 = drop_feature(features.to(device), drop_feature_rate_2, sens_idx)
 
@@ -297,7 +338,7 @@ class NIFTY_GAT(torch.nn.Module):
 
         return sim_loss, l3 + l4
 
-    def fit_GNN(self, epochs=300):
+    def fit_GNN(self, seed, model, data, epochs=300):
         best_loss = 100
         for epoch in range(epochs + 1):
 
@@ -335,12 +376,12 @@ class NIFTY_GAT(torch.nn.Module):
                 self.val_loss=val_loss.item()
 
                 best_loss = val_loss
-                torch.save(self.state_dict(), f'weights_GNN_{"gat"}.pt')
+                # torch.save(self.state_dict(), f'weights_GNN_{"gat" + str(seed) + str(model) + str(data)}.pt')
 
 
 
 
-    def fit(self, epochs=300):
+    def fit(self, seed, model, data, epochs=300):
 
 
 
@@ -360,8 +401,8 @@ class NIFTY_GAT(torch.nn.Module):
                 self.train()
                 self.optimizer_1.zero_grad()
                 self.optimizer_2.zero_grad()
-                edge_index_1 = dropout_adj(self.edge_index, p=self.drop_edge_rate_1)[0]
-                edge_index_2 = dropout_adj(self.edge_index, p=self.drop_edge_rate_2)[0]
+                edge_index_1 = dropout_edge(self.edge_index, p=self.drop_edge_rate_1)[0]
+                edge_index_2 = dropout_edge(self.edge_index, p=self.drop_edge_rate_2)[0]
                 x_1 = drop_feature(self.features, self.drop_feature_rate_1, self.sens_idx, sens_flag=False)
                 x_2 = drop_feature(self.features, self.drop_feature_rate_2, self.sens_idx)
                 z1 = self.forward(x_1, edge_index_1)
@@ -416,12 +457,12 @@ class NIFTY_GAT(torch.nn.Module):
 
                 print(f'{epoch} | {val_s_loss:.4f} | {val_c_loss:.4f}')
                 best_loss = val_c_loss + val_s_loss
-                torch.save(self.state_dict(), f'weights_ssf_{"gat"}.pt')
+                # torch.save(self.state_dict(), f'weights_ssf_{"gat" + str(seed) + str(model) + str(data) }.pt')
 
 
     def predict_GNN(self):
 
-        self.load_state_dict(torch.load(f'weights_GNN_{"gat"}.pt'))
+        self.load_state_dict(torch.load(f'weights_GNN_{"gat" + str(seed) + str(model) + str(data) }.pt'))
         self.eval()
         emb = self.forward(self.features.to(self.device), self.edge_index.to(self.device))
         output = self.forwarding_predict(emb)
@@ -448,9 +489,9 @@ class NIFTY_GAT(torch.nn.Module):
 
 
 
-    def predict(self):
+    def predict(self, seed, model, data):
 
-        self.load_state_dict(torch.load(f'weights_ssf_{"gat"}.pt'))
+        self.load_state_dict(torch.load(f'weights_ssf_{"gat" + str(seed) + str(model) + str(data)}.pt'))
         self.eval()
         emb = self.forward(self.features.to(self.device), self.edge_index.to(self.device))
         output = self.forwarding_predict(emb)
@@ -514,6 +555,7 @@ class NIFTY_GAT(torch.nn.Module):
                      sum(pred[idx_s1]) / sum(idx_s1))
         equality = abs(sum(pred[idx_s0_y1]) / sum(idx_s0_y1) -
                        sum(pred[idx_s1_y1]) / sum(idx_s1_y1))
+        print("for equality sum(pred[idx_s0_y1]): ", sum(pred[idx_s0_y1]))
         return parity.item(), equality.item()
 
     def predict_sens_group(self, output, idx_test):

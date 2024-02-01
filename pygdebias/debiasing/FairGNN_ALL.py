@@ -59,8 +59,6 @@ class GAT(nn.Module):
             if m.bias is not None:
                 m.bias.data.fill_(0.0)
     def forward(self, edge_index, x):
-        print("this is X: ", x.size())
-        print("EDGE_INDEX: ", edge_index.size())
         x = self.conv1(x, edge_index)
         x = x.flatten(start_dim=1)
         x = self.transition(x)
@@ -83,8 +81,6 @@ def get_model(nfeat, num_hidden, gnn):
         model = GAT(nfeat, num_hidden)
     elif gnn == "gcn":
         model = GCN(nfeat, num_hidden)
-
-
     return model
 
 
@@ -92,7 +88,7 @@ class FairGNN_ALL(nn.Module):
     def __init__(
         self, 
         adj, features, labels, idx_train, idx_val, idx_test, sens,
-        nfeat, num_hidden, sim_coeff, acc, alpha, beta, proj_hidden,
+        nfeat, num_hidden, sim_coeff, acc, alpha, beta,
         lr, weight_decay, model, n_order=10, subgraph_size=30, epoch=2000, device="cuda"
     ):
         super(FairGNN_ALL, self).__init__()
@@ -140,7 +136,7 @@ class FairGNN_ALL(nn.Module):
             self.estimator = GAT(nfeat, 1)
         elif args.model == "gcn":
             self.estimator = GCN(nfeat, 1)
-        print("NUM_HIDDEN: ", num_hidden)
+        # print("NUM_HIDDEN: ", num_hidden)
         self.GNN = get_model(nfeat, num_hidden, args.model)
         self.classifier = nn.Linear(num_hidden, 1)
         self.adv = nn.Linear(num_hidden, 1)

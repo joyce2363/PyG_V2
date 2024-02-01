@@ -69,10 +69,9 @@ elif args.dataset == "bail":
     )
 
 def objective(trial):
-    # Define the hyperparameter search space
-    num_hidden = trial.suggest_categorical("num_hidden", [16, 64, 128, 256])
+    num_hidden = trial.suggest_categorical("num_hidden", [4, 16, 64, 128, 256])
     num_proj_hidden = trial.suggest_categorical("num_proj_hidden", [4, 16, 64, 128, 256])
-    lr = trial.suggest_categorical("lr", [1e-2, 1e-3, 1e-4, 1e-5])
+    lr = trial.suggest_categorical("lr", [0.01, 0.001, 0.0001, 0.00001])
     weight_decay = trial.suggest_categorical("weight_decay", [1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
     sim_coeff = trial.suggest_categorical("sim_coeff", [0.3, 0.5, 0.7])
 
@@ -139,24 +138,7 @@ print("Best parameters:")
 for key, value in best_params.items():
     print(f"{key}: {value}")
 
-if args.dataset == "pokec_z": 
-    filename = 'hyperparameter_nifty_gcn_' + '.csv'
-elif args.dataset == "pokec_n":
-    filename = 'hyperparameter_nifty_gcn_' + '.csv'
-
-    # filename = 'hyperparameter.csv'
-elif args.dataset == "nba": 
-    # filename = 'hyperparameter' + str(args.dataset) + '.csv'
-    filename = 'hyperparameter_nifty_gcn_' + '.csv'
-
-elif args.dataset == "income": 
-    # filename = 'hyperparameter' + str(args.dataset) + '.csv'
-    filename = 'hyperparameter_nifty_gcn_' + '.csv'
-elif args.dataset == "bail": 
-    # filename = 'hyperparameter' + str(args.dataset) + '.csv'
-    filename = 'hyperparameter_nifty_gcn_' + '.csv'
-
-
+filename = 'hyperparameter_nifty_gcn_' + '.csv'
 
 # Writing data to CSV
 with open(filename, 'a', newline='') as file:

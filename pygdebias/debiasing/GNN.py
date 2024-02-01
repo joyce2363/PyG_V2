@@ -28,7 +28,16 @@ class Classifier(nn.Module):
     def forward(self, seq):
         ret = self.fc1(seq)
         return ret
+    
+class GCN(nn.Module):
+    def __init__(self, nfeat, nhid, dropout=0.5):
+        super(GCN, self).__init__()
+        self.gc1 = GCNConv(nfeat, nhid)
 
+    def forward(self, x, edge_index):
+        x = self.gc1(x, edge_index)
+        return x
+    
 class GAT(nn.Module):
     def __init__(self, nfeat, nhid, dropout=0.5, nheads=1): 
         print("NHID: ", nhid)
@@ -109,9 +118,12 @@ class Encoder(torch.nn.Module):
                 base_model="gat", k: int = 2):
         super(Encoder, self).__init__()
         self.base_model = base_model
-        if self.base_model == 'gat':
-            print("out_channels: ", out_channels)
+        if self.base_model == "gat":
             self.conv = GAT(in_channels, out_channels)
+        elif self.base_model == 'gcn':
+            self.conv = GCN(in_channels, out_channels)
+        # elif self.base_model == 'sage':
+        #     self.conv = SAGE(in_channels, out_channels)
         for m in self.modules():
             self.weights_init(m)
 
@@ -142,9 +154,10 @@ class GNN(torch.nn.Module):
             lr,
             weight_decay, 
             sim_coeff,
+            # seed,
             encoder="gat", 
             nclass=1, 
-            device="cuda"
+            device="cuda",
             ):
         super(GNN, self).__init__()        
         self.device = device
@@ -264,7 +277,7 @@ class GNN(torch.nn.Module):
 
 
 
-    def fit(self, epochs=1000):
+    def fit(self, seed, model, data, epochs=1000):
         best_loss = 100
         for epoch in range(epochs + 1):
             sim_loss = 0
@@ -277,8 +290,8 @@ class GNN(torch.nn.Module):
 
             # classifier
             z1 = self.forward(x_1, edge_index_1)
-            print("X_1:", x_1)
-            print("edge_index_1:", edge_index_1)
+            # print("X_1:", x_1)
+            # print("edge_index_1:", edge_index_1)
             c1 = self.classifier(z1)
 
             # Binary Cross-Entropy
@@ -309,17 +322,17 @@ class GNN(torch.nn.Module):
 
                 best_loss = val_loss
                 # if self.encoder == "sage": 
-                torch.save(self.state_dict(), f'weights_GNN_{"gat"}.pt')
+                torch.save(self.state_dict(), f'weights_GNN_{"gat" + str(seed) + str(model) + str(data)}.pt')
                 # else: 
-                #     torch.save(self.state_dict(), f'weights_GNN_{self.encoder}.pt')
+                # torch.save(self.state_dict(), f'weights_GNN_{self.encoder}.pt')
 
 
 
-    def predict(self):
+    def predict(self, seed, data, model):
         # if self.encoder == "sage": 
-        self.load_state_dict(torch.load(f'weights_GNN_{"gat"}.pt'))
+        self.load_state_dict(torch.load(f'weights_GNN_{"gat" + str(seed) + str(model) + str(data)}.pt'))
         # else: 
-            # self.load_state_dict(torch.load(f'weights_GNN_{self.encoder}.pt'))
+        # self.load_state_dict(torch.load(f'weights_GNN_{self.encoder}.pt'))
         # self.load_state_dict(torch.load(f'weights_GNN_{self.encoder}.pt'))
 
         self.eval()
@@ -327,8 +340,8 @@ class GNN(torch.nn.Module):
         output = self.forwarding_predict(emb)
 
         output_preds = (output.squeeze() > 0).type_as(self.labels)[self.idx_test].detach().cpu().numpy()
-        print("output_preds:", output_preds)
-        print("len(output_preds): ", len(output_preds))
+        # print("output_preds:", output_preds)
+        # print("len(output_preds): ", len(output_preds))
         labels = self.labels.detach().cpu().numpy()
         idx_test = self.idx_test
 
