@@ -337,7 +337,7 @@ class Pokec_z(Dataset):
             sens_attr="region",
             predict_attr="I_am_working_in_field",
             path="./dataset/pokec/",
-            label_number= 500,
+            label_number= 1000, #bail
             sens_number= 200,
             seed=seed,
             test_idx=False,
@@ -363,7 +363,7 @@ class Pokec_z(Dataset):
         sens_attr,
         predict_attr,
         path="../dataset/pokec/",
-        label_number=500,
+        label_number=1000, #500
         sens_number=200,
         test_idx=False,
     ):
@@ -432,10 +432,13 @@ class Pokec_z(Dataset):
 
         idx_train = np.append(label_idx_0[:min(int(0.5 * len(label_idx_0)), label_number // 2)],
                           label_idx_1[:min(int(0.5 * len(label_idx_1)), label_number // 2)])
+        print("len(idx_train):", len(idx_train))
         idx_val = np.append(label_idx_0[int(0.5 * len(label_idx_0)):int(0.75 * len(label_idx_0))],
                         label_idx_1[int(0.5 * len(label_idx_1)):int(0.75 * len(label_idx_1))])
+        print("len(idx_val):", len(idx_val))
         idx_test = np.append(label_idx_0[int(0.75 * len(label_idx_0)):], label_idx_1[int(0.75 * len(label_idx_1)):])
-        
+        print("len(idx_test):", len(idx_test))
+
 
         # idx_train = label_idx[: min(int(0.5 * len(label_idx)), label_number)]
         # idx_val = label_idx[int(0.5 * len(label_idx)) : int(0.75 * len(label_idx))]
@@ -492,7 +495,7 @@ class Pokec_n(Dataset):
             sens_attr = "region",
             predict_attr = "I_am_working_in_field",
             path = 'none',
-            label_number=500,
+            label_number=1000, #500
             sens_number = 200,
             seed = seed,
             test_idx= False,
@@ -517,7 +520,7 @@ class Pokec_n(Dataset):
         sens_attr,
         predict_attr,
         path="../dataset/pokec/",
-        label_number=500,
+        label_number=1000, #500
         sens_number=200,
         test_idx=False,
     ):
@@ -585,17 +588,30 @@ class Pokec_n(Dataset):
             label_idx_0 = pickle.load(handle)
         with open("label_idx_1_" + dataset + "_" + str(seed)+ ".pickle", "rb") as handle:
             label_idx_1 = pickle.load(handle) 
-        print("label_idx_0: ", label_idx_0)
-        print("label_idx_1: ", label_idx_1)
+        print("LENGTH OF label_idx_0: ", len(label_idx_0))
+        print("LENGTH OF label_idx_1: ", len(label_idx_1))
 
+        # idx_train = np.append(label_idx_0[:min(int(0.5 * len(label_idx_0)), label_number // 2)],
+        #                   label_idx_1[:min(int(0.5 * len(label_idx_1)), label_number // 2)])
+        # idx_val = np.append(label_idx_0[int(0.5 * len(label_idx_0)):int(0.75 * len(label_idx_0))],
+        #                 label_idx_1[int(0.5 * len(label_idx_1)):int(0.75 * len(label_idx_1))])
+        # idx_test = np.append(label_idx_0[int(0.75 * len(label_idx_0)):], label_idx_1[int(0.75 * len(label_idx_1)):])
         idx_train = np.append(label_idx_0[:min(int(0.5 * len(label_idx_0)), label_number // 2)],
                           label_idx_1[:min(int(0.5 * len(label_idx_1)), label_number // 2)])
+        print("(int(0.5 * len(label_idx_0)):", (int(0.5 * len(label_idx_0))))
+        print("len(idx_train):", len(idx_train))
+        curr_min = min(int(0.5 * len(label_idx_0)), label_number // 2)
+        if curr_min == int(0.5 * len(label_idx_0)): 
+            print("MIN: int(0.5 * len(label_idx_0)) :", len(int(0.5 * len(label_idx_0))))
+        elif curr_min == label_number // 2:
+            print("MIN: label_number // 2 :", (len(label_idx_0[:min(int(0.5 * len(label_idx_0)), label_number // 2)])))
         idx_val = np.append(label_idx_0[int(0.5 * len(label_idx_0)):int(0.75 * len(label_idx_0))],
                         label_idx_1[int(0.5 * len(label_idx_1)):int(0.75 * len(label_idx_1))])
+        print("len(idx_val):", len(idx_val))
         idx_test = np.append(label_idx_0[int(0.75 * len(label_idx_0)):], label_idx_1[int(0.75 * len(label_idx_1)):])
-
+        print("len(idx_test):", len(idx_test))
         # sens = idx_features_labels[sens_attr].values
-
+        print("length of all splits combined: ", len(idx_test) + len(idx_train) + len(idx_val))
         sens_idx = set(np.where(sens >= 0)[0])
         # idx_test = np.asarray(list(sens_idx & set(idx_test)))
         # sens = torch.FloatTensor(sens)
@@ -661,7 +677,7 @@ class Bail(Dataset):
         sens_attr="WHITE",
         predict_attr="RECID",
         path="./dataset/bail/",
-        label_number=100,
+        label_number=1000,
     ):
         # print('Loading {} dataset from {}'.format(dataset, path))
         self.path_name = "bail"
@@ -768,6 +784,7 @@ class Income(Dataset):
             sens_idx,
         ) = self.load_income("income", seed)
         seed = seed
+        
         node_num = features.shape[0]
         self.seed = seed
         idx_train = torch.LongTensor(idx_train)

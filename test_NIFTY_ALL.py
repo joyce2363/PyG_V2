@@ -23,7 +23,13 @@ args = parser.parse_args()
 seed = 0
 curr_dict = {} 
 print(zip(args.num_hidden, args.num_proj_hidden, args.lr, args.weight_decay, args.sim_coeff))
-
+import random
+import torch
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+torch.backends.cudnn.deterministic = True
 for i in range (1,6): 
     seed = i 
     if seed == 1: 
@@ -105,6 +111,7 @@ for i in range (1,6):
         idx_val, 
         idx_test, 
         sens, 
+        seed,
         num_hidden = args.num_hidden[seed-1],  
         num_proj_hidden = args.num_proj_hidden[seed-1],
         lr = args.lr[seed-1],
@@ -113,7 +120,7 @@ for i in range (1,6):
         drop_edge_rate_2 = args.drop_edge_rate_2[seed-1], 
         drop_feature_rate_1 = args.drop_feature_rate_1[seed-1], 
         drop_feature_rate_2 = args.drop_feature_rate_2[seed-1], 
-        sim_coeff = args.sim_coeff[seed-1]
+        sim_coeff = args.sim_coeff[seed-1],
     )
         # Train the model.
     model.fit(seed = i, model = args.model, data=args.dataset)

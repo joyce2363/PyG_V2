@@ -16,6 +16,11 @@ import time
 import argparse
 import numpy as np
 import scipy.sparse as sp
+import random
+# def fix_seed(seed):
+#     # random
+#     random.seed(seed)
+#     # Numpy
 
 class Classifier(nn.Module):
     def __init__(self, ft_in, nb_classes):
@@ -120,8 +125,8 @@ class Encoder(torch.nn.Module):
                 base_model='gat', k: int = 2):
         super(Encoder, self).__init__()
         self.base_model = base_model
-        # if self.base_model == 'gcn':
-        #     self.conv = GCN(in_channels, out_channels)
+        if self.base_model == 'gcn':
+            self.conv = GCN(in_channels, out_channels)
         if self.base_model == 'gat': 
             self.conv = GAT(in_channels, out_channels)
         # if self.base_model == 'sage': 
@@ -141,9 +146,14 @@ class Encoder(torch.nn.Module):
         return x
 
 
-
+# np.random.seed(seed)
+# # Pytorch
+# torch.manual_seed(seed)
+# torch.cuda.manual_seed_all(seed)
+# torch.backends.cudnn.deterministic = True
 class NIFTY_GAT(torch.nn.Module):
     def __init__(self, adj, features, labels, idx_train, idx_val, idx_test, sens, 
+                 seed,
                  sens_idx=-1, 
                  num_hidden=16, 
                  num_proj_hidden=16, 
@@ -156,7 +166,13 @@ class NIFTY_GAT(torch.nn.Module):
                  encoder="gat", 
                  sim_coeff=0.5, 
                  nclass=1, 
-                 device="cuda"):
+                 device="cuda", 
+                 ):
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
         super(NIFTY_GAT, self).__init__()
 
         self.device = device
@@ -376,7 +392,7 @@ class NIFTY_GAT(torch.nn.Module):
                 self.val_loss=val_loss.item()
 
                 best_loss = val_loss
-                # torch.save(self.state_dict(), f'weights_GNN_{"gat" + str(seed) + str(model) + str(data)}.pt')
+                torch.save(self.state_dict(), f'weights_GNN_{"gat" + str(seed) + str(model) + str(data)}.pt')
 
 
 
@@ -457,37 +473,7 @@ class NIFTY_GAT(torch.nn.Module):
 
                 print(f'{epoch} | {val_s_loss:.4f} | {val_c_loss:.4f}')
                 best_loss = val_c_loss + val_s_loss
-                # torch.save(self.state_dict(), f'weights_ssf_{"gat" + str(seed) + str(model) + str(data) }.pt')
-
-
-    def predict_GNN(self):
-
-        self.load_state_dict(torch.load(f'weights_GNN_{"gat" + str(seed) + str(model) + str(data) }.pt'))
-        self.eval()
-        emb = self.forward(self.features.to(self.device), self.edge_index.to(self.device))
-        output = self.forwarding_predict(emb)
-
-        output_preds = (output.squeeze() > 0).type_as(self.labels)[self.idx_test].detach().cpu().numpy()
-
-        labels = self.labels.detach().cpu().numpy()
-        idx_test = self.idx_test
-
-        F1 = f1_score(labels[idx_test], output_preds, average='micro')
-        ACC = accuracy_score(labels[idx_test], output_preds, )
-        AUCROC = roc_auc_score(labels[idx_test], output_preds)
-
-        ACC_sens0, AUCROC_sens0, F1_sens0, ACC_sens1, AUCROC_sens1, F1_sens1 = self.predict_sens_group(output_preds,
-                                                                                                       idx_test)
-
-        SP, EO = self.fair_metric(output_preds, self.labels[idx_test].detach().cpu().numpy(),
-                                  self.sens[idx_test].detach().cpu().numpy())
-
-
-        return ACC, AUCROC, F1, ACC_sens0, AUCROC_sens0, F1_sens0, ACC_sens1, AUCROC_sens1, F1_sens1, SP, EO
-
-
-
-
+                torch.save(self.state_dict(), f'weights_ssf_{"gat" + str(seed) + str(model) + str(data) }.pt')
 
     def predict(self, seed, model, data):
 
