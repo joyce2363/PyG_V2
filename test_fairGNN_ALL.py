@@ -15,6 +15,7 @@ parser.add_argument('--beta', nargs='+', type=float, default=[0.01])
 parser.add_argument('--proj_hidden', nargs='+', type=int, default=[16])
 parser.add_argument('--lr', nargs='+', type=float, default=[0.001])
 parser.add_argument('--weight_decay', nargs='+', type=float, default=[0.00001])
+parser.add_argument('--encoder', type=str, default='gat')
 
 args = parser.parse_args()
 
@@ -113,9 +114,10 @@ for i in range (1,6):
         acc = args.acc[seed-1],
         alpha = args.alpha[seed-1],
         beta = args.beta[seed-1],
-        proj_hidden= args.proj_hidden[seed-1],
+        # proj_hidden= args.proj_hidden[seed-1],
         lr = args.lr[seed-1],
         weight_decay = args.weight_decay[seed-1], 
+        encoder = args.encoder,
     )
         # Train the model.
     model.fit(
@@ -175,7 +177,7 @@ print("statistical parity:", args.dataset, np.round(np.mean(satistical_parity), 
 print("equal Opportunity:", args.dataset, np.round(np.mean(equal_opportunity), decimals=4)*100, '+=', np.round(np.var(equal_opportunity), decimals=4)*100)
 
 
-filename = 'FAIRGNN_RESULTS.csv'
+filename = 'marchRESULTS.csv'
 
 # Writing data to CSV
 with open(filename, 'a', newline='') as file:

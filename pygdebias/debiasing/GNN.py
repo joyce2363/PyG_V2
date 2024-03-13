@@ -115,8 +115,9 @@ class Encoder_DGI(nn.Module):
 
 class Encoder(torch.nn.Module):
     def __init__(self, in_channels: int, out_channels: int, 
-                base_model="gat", k: int = 2):
+                base_model, k: int = 2):
         super(Encoder, self).__init__()
+        print("ENCODER: ", base_model)
         self.base_model = base_model
         if self.base_model == "gat":
             self.conv = GAT(in_channels, out_channels)
@@ -322,7 +323,7 @@ class GNN(torch.nn.Module):
 
                 best_loss = val_loss
                 # if self.encoder == "sage": 
-                torch.save(self.state_dict(), f'weights_GNN_{"gat" + str(seed) + str(model) + str(data)}.pt')
+                torch.save(self.state_dict(), f'weights_GNN_{str(seed) + str(model) + str(data)}.pt')
                 # else: 
                 # torch.save(self.state_dict(), f'weights_GNN_{self.encoder}.pt')
 
@@ -330,7 +331,7 @@ class GNN(torch.nn.Module):
 
     def predict(self, seed, data, model):
         # if self.encoder == "sage": 
-        self.load_state_dict(torch.load(f'weights_GNN_{"gat" + str(seed) + str(model) + str(data)}.pt'))
+        self.load_state_dict(torch.load(f'weights_GNN_{str(seed) + str(model) + str(data)}.pt'))
         # else: 
         # self.load_state_dict(torch.load(f'weights_GNN_{self.encoder}.pt'))
         # self.load_state_dict(torch.load(f'weights_GNN_{self.encoder}.pt'))

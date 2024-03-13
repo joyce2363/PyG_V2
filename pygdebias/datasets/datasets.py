@@ -15,6 +15,7 @@ import csv
 import pickle as pkl
 import requests
 import os
+import random
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import zipfile
@@ -163,6 +164,11 @@ class Nba(Dataset):
         predict_attr_specify=None, 
         return_tensor_sparse=True
     ):
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
         super(Nba, self).__init__(seed)
         (
             adj, 
@@ -213,22 +219,23 @@ class Nba(Dataset):
         """Load data"""
 
         self.path_name = "nba"
-        if not os.path.exists(os.path.join(self.root, self.path_name)):
-            os.makedirs(os.path.join(self.root, self.path_name))
-        if not os.path.exists(os.path.join(self.root, self.path_name, "nba.csv")):
-            url = "https://raw.githubusercontent.com/PyGDebias-Team/data/main/2023-7-26/NBA/nba.csv"
-            filename = "nba.csv"
-            self.download(url, filename)
-        if not os.path.exists(
-            os.path.join(self.root, self.path_name, "nba_relationship.txt")
-        ):
-            url = "https://raw.githubusercontent.com/PyGDebias-Team/data/main/2023-7-26/NBA/nba_relationship.txt"
-            filename = "nba_relationship.txt"
-            self.download(url, filename)
+        # if not os.path.exists(os.path.join(self.root, self.path_name)):
+        #     os.makedirs(os.path.join(self.root, self.path_name))
+        # if not os.path.exists(os.path.join(self.root, self.path_name, "nba.csv")):
+        #     url = "https://raw.githubusercontent.com/PyGDebias-Team/data/main/2023-7-26/NBA/nba.csv"
+        #     filename = "nba.csv"
+        #     self.download(url, filename)
+        # if not os.path.exists(
+        #     os.path.join(self.root, self.path_name, "nba_relationship.txt")
+        # ):
+        #     url = "https://raw.githubusercontent.com/PyGDebias-Team/data/main/2023-7-26/NBA/nba_relationship.txt"
+        #     filename = "nba_relationship.txt"
+        #     self.download(url, filename)
 
         idx_features_labels = pd.read_csv(
             os.path.join(self.root, self.path_name, "nba.csv")
         )
+        # print("IDX_FEATURES_LABELS NBA: ", idx_features_labels) # this should be the same
         header = list(idx_features_labels.columns)
         header.remove("user_id")
 
@@ -265,8 +272,6 @@ class Nba(Dataset):
         labels = torch.LongTensor(labels)
         # adj = mx_to_torch_sparse_tensor(adj)
 
-        import random
-
         random.seed(seed)
         label_idx = np.where(labels >= 0)[0]
         random.shuffle(label_idx)
@@ -279,6 +284,7 @@ class Nba(Dataset):
         # print("label_idx: ", label_idx)
 
         idx_train = label_idx[: min(int(0.5 * len(label_idx)), label_number)]
+        print("LENGTH OF IDX_TRAIN:", len(idx_train))
         idx_val = label_idx[int(0.5 * len(label_idx)) : int(0.75 * len(label_idx))]
         if test_idx:
             idx_test = label_idx[label_number:]
@@ -309,9 +315,9 @@ class Nba(Dataset):
         idx_test = torch.LongTensor(idx_test)
 
         features = torch.cat([features, sens.unsqueeze(-1)], -1)
-        # random.shuffle(sens_idx)
-        # sens_idx = sens_idx.long()
-        # print("SENS_IDX: ", sens_idx.dtype)
+        print("IDX_SENS_TRAIN: ", idx_sens_train)
+        print("IDX_VAL: ", idx_val)
+        print("IDX_TEST: ", idx_test)
         return adj, features, labels, idx_train, idx_val, idx_test, sens, idx_sens_train, sens_idx
 
 class Pokec_z(Dataset):
@@ -322,6 +328,12 @@ class Pokec_z(Dataset):
         predict_attr_specify=None,
         return_tensor_sparse=True,
     ):
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        
         super(Pokec_z, self).__init__(seed)
         (
             adj,
@@ -411,8 +423,9 @@ class Pokec_z(Dataset):
         # features = torch.FloatTensor(np.array(features.todense()))
         # labels = torch.LongTensor(labels)
         # adj = mx_to_torch_sparse_tensor(adj)
-
-        import random
+        features = torch.FloatTensor(np.array(features))
+        labels = torch.LongTensor(labels)
+        sens = torch.LongTensor(sens)
 
         random.seed(seed)
         # label_idx = np.where(labels >= 0)[0]
@@ -453,10 +466,6 @@ class Pokec_z(Dataset):
         # sens_idx = set(np.where(sens >= 0)[0])
         # idx_test = np.asarray(list(sens_idx & set(idx_test)))
 
-        features = torch.FloatTensor(np.array(features))
-        labels = torch.LongTensor(labels)
-        sens = torch.FloatTensor(sens)
-
         # idx_sens_train = list(sens_idx - set(idx_val) - set(idx_test))
         # random.seed(seed)
         # random.shuffle(idx_sens_train)
@@ -481,6 +490,12 @@ class Pokec_n(Dataset):
         predict_attr_specify=None,
         return_tensor_sparse=True,
     ):
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+
         super(Pokec_n, self).__init__(seed)
         (adj, 
         features, 
@@ -635,6 +650,11 @@ class Pokec_n(Dataset):
 class Bail(Dataset):
     def __init__(self,
                  seed):
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
         super(Bail, self).__init__(seed)
         (
             adj,
@@ -647,7 +667,11 @@ class Bail(Dataset):
             idx_test,
             sens_idx,
         ) = self.load_bail("bail", seed)
-
+        # random.seed(seed)
+        # np.random.seed(seed)
+        # torch.manual_seed(seed)
+        # torch.cuda.manual_seed_all(seed)
+        # torch.backends.cudnn.deterministic = True
         node_num = features.shape[0]
 
         idx_train = torch.LongTensor(idx_train)
@@ -681,19 +705,19 @@ class Bail(Dataset):
     ):
         # print('Loading {} dataset from {}'.format(dataset, path))
         self.path_name = "bail"
-        if not os.path.exists(os.path.join(self.root, self.path_name)):
-            os.makedirs(os.path.join(self.root, self.path_name))
+        # if not os.path.exists(os.path.join(self.root, self.path_name)):
+        #     os.makedirs(os.path.join(self.root, self.path_name))
 
-        if not os.path.exists(os.path.join(self.root, self.path_name, "bail.csv")):
-            url = "https://raw.githubusercontent.com/PyGDebias-Team/data/main/2023-7-26/bail/bail.csv"
-            file_name = "bail.csv"
-            self.download(url, file_name)
-        if not os.path.exists(
-            os.path.join(self.root, self.path_name, "bail_edges.txt")
-        ):
-            url = "https://raw.githubusercontent.com/PyGDebias-Team/data/main/2023-7-26/bail/bail_edges.txt"
-            file_name = "bail_edges.txt"
-            self.download(url, file_name)
+        # if not os.path.exists(os.path.join(self.root, self.path_name, "bail.csv")):
+        #     url = "https://raw.githubusercontent.com/PyGDebias-Team/data/main/2023-7-26/bail/bail.csv"
+        #     file_name = "bail.csv"
+        #     self.download(url, file_name)
+        # if not os.path.exists(
+        #     os.path.join(self.root, self.path_name, "bail_edges.txt")
+        # ):
+        #     url = "https://raw.githubusercontent.com/PyGDebias-Team/data/main/2023-7-26/bail/bail_edges.txt"
+        #     file_name = "bail_edges.txt"
+        #     self.download(url, file_name)
 
         idx_features_labels = pd.read_csv(
             os.path.join(self.root, self.path_name, "{}.csv".format(dataset))
@@ -771,6 +795,11 @@ class Bail(Dataset):
 
 class Income(Dataset):
     def __init__(self, seed):
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
         super(Income, self).__init__(seed)
         (
             adj,

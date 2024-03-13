@@ -13,6 +13,8 @@ parser.add_argument('--weight_decay', nargs='+', type=float, default=[1e-5])
 parser.add_argument('--sim_coeff', nargs='+', type=float, default=[0.5] )
 parser.add_argument('--model', type=str, default="gat")
 parser.add_argument('--seed', type=str, default="1")
+parser.add_argument('--encoder', type=str, default='gat')
+
 args = parser.parse_args()
 
 # Available choices: 'Credit', 'German', 'Facebook', 'Pokec_z', 'Pokec_n', 'Nba', 'Twitter', 'Google', 'LCC', 'LCC_small', 'Cora', 'Citeseer', 'Amazon', 'Yelp', 'Epinion', 'Ciao', 'Dblp', 'Filmtrust', 'Lastfm', 'Ml-100k', 'Ml-1m', 'Ml-20m', 'Oklahoma', 'UNC', 'Bail'.
@@ -125,7 +127,8 @@ for i in range (1,6):
         num_proj_hidden = args.num_proj_hidden[seed-1],
         lr = args.lr[seed-1],
         weight_decay = args.weight_decay[seed-1], 
-        sim_coeff = args.sim_coeff[seed-1]
+        sim_coeff = args.sim_coeff[seed-1],
+        encoder = args.encoder,
     )
         # Train the model.
     model.fit(seed= args.seed, model=args.model, data = args.dataset)
@@ -184,7 +187,7 @@ print("statistical parity:", args.dataset, np.round(np.mean(satistical_parity), 
 print("equal Opportunity:", args.dataset, np.round(np.mean(equal_opportunity), decimals=4)*100, '+=', np.round(np.var(equal_opportunity), decimals=4)*100)
 
 
-filename = 'VANILLA.csv'
+filename = 'marchRESULTS.csv'
 
 # Writing data to CSV
 with open(filename, 'a', newline='') as file:

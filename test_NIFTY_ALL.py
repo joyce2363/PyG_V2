@@ -17,19 +17,20 @@ parser.add_argument('--drop_feature_rate_1', nargs='+', type=float, default=[0.0
 parser.add_argument('--drop_feature_rate_2', nargs='+', type=float, default=[0.01])
 
 parser.add_argument('--model', type=str, default='gat')
+parser.add_argument('--encoder', type=str, default='gat')
 args = parser.parse_args()
 
 # Available choices: 'Credit', 'German', 'Facebook', 'Pokec_z', 'Pokec_n', 'Nba', 'Twitter', 'Google', 'LCC', 'LCC_small', 'Cora', 'Citeseer', 'Amazon', 'Yelp', 'Epinion', 'Ciao', 'Dblp', 'Filmtrust', 'Lastfm', 'Ml-100k', 'Ml-1m', 'Ml-20m', 'Oklahoma', 'UNC', 'Bail'.
 seed = 0
 curr_dict = {} 
 print(zip(args.num_hidden, args.num_proj_hidden, args.lr, args.weight_decay, args.sim_coeff))
-import random
-import torch
-random.seed(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-torch.backends.cudnn.deterministic = True
+# import random
+# import torch
+# random.seed(seed)
+# np.random.seed(seed)
+# torch.manual_seed(seed)
+# torch.cuda.manual_seed_all(seed)
+# torch.backends.cudnn.deterministic = True
 for i in range (1,6): 
     seed = i 
     if seed == 1: 
@@ -121,6 +122,7 @@ for i in range (1,6):
         drop_feature_rate_1 = args.drop_feature_rate_1[seed-1], 
         drop_feature_rate_2 = args.drop_feature_rate_2[seed-1], 
         sim_coeff = args.sim_coeff[seed-1],
+        encoder = args.encoder,
     )
         # Train the model.
     model.fit(seed = i, model = args.model, data=args.dataset)
@@ -160,7 +162,7 @@ for i in range (1,6):
     print("F1_sens1: ", F1_sens1)
     print("SP: ", SP)
     print("EO:", EO)
-curr_dict['Model'] = str(args.model)
+curr_dict['Model'] = 'NIFTY_' + str(args.model)
 
 if args.dataset == 'pokec_z': 
     curr_dict['Dataset'] = str('pokec1')
@@ -179,7 +181,7 @@ print("statistical parity:", args.dataset, np.round(np.mean(satistical_parity), 
 print("equal Opportunity:", args.dataset, np.round(np.mean(equal_opportunity), decimals=4)*100, '+=', np.round(np.var(equal_opportunity), decimals=4)*100)
 
 
-filename = 'NIFTY_CURRENT.csv'
+filename = 'marchRESULTS.csv'
 
 # Writing data to CSV
 with open(filename, 'a', newline='') as file:

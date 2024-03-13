@@ -89,8 +89,9 @@ class FairGNN_ALL(nn.Module):
         self, 
         adj, features, labels, idx_train, idx_val, idx_test, sens,
         nfeat, num_hidden, sim_coeff, acc, alpha, beta,
-        lr, weight_decay, model, n_order=10, subgraph_size=30, epoch=2000, device="cuda"
+        lr, weight_decay, model, encoder, n_order=10, subgraph_size=30, epoch=2000, device="cuda",
     ):
+        torch.backends.cudnn.deterministic = True
         super(FairGNN_ALL, self).__init__()
 
         parser = argparse.ArgumentParser()

@@ -17,10 +17,6 @@ import argparse
 import numpy as np
 import scipy.sparse as sp
 import random
-# def fix_seed(seed):
-#     # random
-#     random.seed(seed)
-#     # Numpy
 
 class Classifier(nn.Module):
     def __init__(self, ft_in, nb_classes):
@@ -122,21 +118,23 @@ class Encoder_DGI(nn.Module):
 
 class Encoder(torch.nn.Module):
     def __init__(self, in_channels: int, out_channels: int, 
-                base_model='gat', k: int = 2):
+                base_model, k: int = 2):
         super(Encoder, self).__init__()
         self.base_model = base_model
+        print("ENCODER: ", base_model)
         if self.base_model == 'gcn':
             self.conv = GCN(in_channels, out_channels)
         if self.base_model == 'gat': 
             self.conv = GAT(in_channels, out_channels)
-        # if self.base_model == 'sage': 
-        #     self.conv = SAGE(in_channels, out_channels)
+        if self.base_model == 'sage': 
+            self.conv = SAGE(in_channels, out_channels)
 
         for m in self.modules():
             self.weights_init(m)
 
     def weights_init(self, m):
         if isinstance(m, nn.Linear):
+            # torch.backends.cudnn.deterministic = True # added to try
             torch.nn.init.xavier_uniform_(m.weight.data)
             if m.bias is not None:
                 m.bias.data.fill_(0.0)
@@ -145,12 +143,6 @@ class Encoder(torch.nn.Module):
         x = self.conv(x, edge_index)
         return x
 
-
-# np.random.seed(seed)
-# # Pytorch
-# torch.manual_seed(seed)
-# torch.cuda.manual_seed_all(seed)
-# torch.backends.cudnn.deterministic = True
 class NIFTY_GAT(torch.nn.Module):
     def __init__(self, adj, features, labels, idx_train, idx_val, idx_test, sens, 
                  seed,
@@ -163,7 +155,7 @@ class NIFTY_GAT(torch.nn.Module):
                  drop_edge_rate_2=0.1, 
                  drop_feature_rate_1=0.1, 
                  drop_feature_rate_2=0.1, 
-                 encoder="gat", 
+                 encoder="sage", 
                  sim_coeff=0.5, 
                  nclass=1, 
                  device="cuda", 
@@ -181,7 +173,7 @@ class NIFTY_GAT(torch.nn.Module):
         self.edge_index = adj.coalesce().indices()
 
 
-
+        # self.encoder_gnn = encoder
         self.encoder = Encoder(in_channels=features.shape[1], out_channels=num_hidden, base_model=encoder).to(device)
         # model = SSF(encoder=encoder, num_hidden=args.hidden, num_proj_hidden=args.proj_hidden, sim_coeff=args.sim_coeff,
                     # nclass=num_class).to(device)
@@ -392,7 +384,7 @@ class NIFTY_GAT(torch.nn.Module):
                 self.val_loss=val_loss.item()
 
                 best_loss = val_loss
-                torch.save(self.state_dict(), f'weights_GNN_{"gat" + str(seed) + str(model) + str(data)}.pt')
+                torch.save(self.state_dict(), f'weights_GNN_{"NIFTY" + str(seed) + str(model) + str(data)}.pt')
 
 
 
@@ -473,11 +465,11 @@ class NIFTY_GAT(torch.nn.Module):
 
                 print(f'{epoch} | {val_s_loss:.4f} | {val_c_loss:.4f}')
                 best_loss = val_c_loss + val_s_loss
-                torch.save(self.state_dict(), f'weights_ssf_{"gat" + str(seed) + str(model) + str(data) }.pt')
+                torch.save(self.state_dict(), f'weights_ssf_{"NIFTY" + str(seed) + str(model) + str(data)}.pt')
 
     def predict(self, seed, model, data):
 
-        self.load_state_dict(torch.load(f'weights_ssf_{"gat" + str(seed) + str(model) + str(data)}.pt'))
+        self.load_state_dict(torch.load(f'weights_ssf_{"NIFTY" + str(seed) + str(model) + str(data)}.pt'))
         self.eval()
         emb = self.forward(self.features.to(self.device), self.edge_index.to(self.device))
         output = self.forwarding_predict(emb)

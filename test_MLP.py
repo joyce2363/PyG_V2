@@ -171,7 +171,7 @@ print("statistical parity:", args.dataset, np.round(np.mean(satistical_parity), 
 print("equal Opportunity:", args.dataset, np.round(np.mean(equal_opportunity), decimals=4)*100, '+=', np.round(np.var(equal_opportunity), decimals=4)*100)
 
 
-filename = 'MLP.csv'
+filename = 'marchRESULTS.csv'
 
 # Writing data to CSV
 with open(filename, 'a', newline='') as file:
