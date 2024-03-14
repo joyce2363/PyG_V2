@@ -123,8 +123,8 @@ class Encoder(torch.nn.Module):
             self.conv = GAT(in_channels, out_channels)
         elif self.base_model == 'gcn':
             self.conv = GCN(in_channels, out_channels)
-        # elif self.base_model == 'sage':
-        #     self.conv = SAGE(in_channels, out_channels)
+        elif self.base_model == 'sage':
+            self.conv = SAGE(in_channels, out_channels)
         for m in self.modules():
             self.weights_init(m)
 
